@@ -65,15 +65,21 @@ export default function HomeScreen() {
           "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself."
         </Text>
       </View>
-      <TextInput
-        value={value}
-        onChangeText={setValue}
-        onSubmitEditing={handleSubmit}
-        placeholder="Type something…"
-        style={styles.input}
-        returnKeyType="done"
-        autoFocus
-      />
+      <View style={styles.inputContainer}>
+        <TextInput
+          value={value}
+          onChangeText={setValue}
+          onSubmitEditing={handleSubmit}
+          placeholder="Enter a topic to explore both sides"
+          style={styles.input}
+          returnKeyType="done"
+          autoFocus
+          placeholderTextColor="#9CA3AF"
+        />
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} accessibilityRole="button">
+          <Text style={styles.submitButtonText}>Debate</Text>
+        </TouchableOpacity>
+      </View>
       {loading && (
         <View style={{ paddingVertical: 12 }}>
           <ActivityIndicator size="small" />
@@ -166,13 +172,6 @@ const styles = StyleSheet.create({
   columnScroll: {
     maxHeight: 300,
   },
-  card: {
-    marginBottom: 12,
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
   claim: {
     fontWeight: '700',
     marginBottom: 6,
@@ -184,5 +183,45 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     textDecorationLine: 'underline',
     marginBottom: 4,
+  },
+  inputContainer: {
+    width: '80%',
+    maxWidth: 600,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  submitButton: {
+    marginLeft: 8,
+    backgroundColor: '#111827',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  card: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#eee',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
 });
