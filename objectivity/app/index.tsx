@@ -226,16 +226,18 @@ export default function HomeScreen() {
             <Text style={styles.counterButtonText}>Counterargument</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.counterButton, { marginLeft: 8, backgroundColor: '#065f46' }]}
-            onPress={() => {
-              const claim = item.claim || '';
-              handleDive(side, path, claim, rootSide || side);
-            }}
-            accessibilityRole="button"
-          >
-            <Text style={styles.counterButtonText}>Dive in</Text>
-          </TouchableOpacity>
+          {!item.detail && (
+            <TouchableOpacity
+              style={[styles.counterButton, { marginLeft: 8, backgroundColor: '#065f46' }]}
+              onPress={() => {
+                const claim = item.claim || '';
+                handleDive(side, path, claim, rootSide || side);
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={styles.counterButtonText}>Dive in</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {item.detail && (

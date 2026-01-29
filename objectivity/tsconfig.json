@@ -3,7 +3,9 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "node",
-    "lib": ["ES2020"],
+    "lib": [
+      "ES2020"
+    ],
     "jsx": "react-native",
     "strict": true,
     "esModuleInterop": true,
@@ -11,7 +13,9 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -20,5 +24,9 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", "app-example"]
+  "exclude": [
+    "node_modules",
+    "app-example"
+  ],
+  "extends": "expo/tsconfig.base"
 }
