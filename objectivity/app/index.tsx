@@ -60,6 +60,15 @@ export default function HomeScreen() {
     }
   };
 
+  const clearDebate = () => {
+    setValue('');
+    setProArgs([]);
+    setConArgs([]);
+    setTopicState(null);
+    setError(null);
+    setLoading(false);
+  };
+
   function updateNestedInsert(arr: ArgumentItem[], path: number[], itemsToAppend: ArgumentItem[]): ArgumentItem[] {
     if (!path || path.length === 0) return arr;
     const idx = path[0];
@@ -177,6 +186,13 @@ export default function HomeScreen() {
           <Text style={styles.submitButtonText}>Debate</Text>
         </TouchableOpacity>
       </View>
+      {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
+        <View style={{ width: '80%', maxWidth: 600, alignItems: 'flex-end' }}>
+          <TouchableOpacity style={styles.clearButton} onPress={clearDebate} accessibilityRole="button">
+            <Text style={styles.clearButtonText}>Clear Debate</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {loading && (
         <View style={{ paddingVertical: 12 }}>
           <ActivityIndicator size="small" />
@@ -408,5 +424,16 @@ const styles = StyleSheet.create({
   conSource: {
     color: '#1D4ED8',
     textDecorationLine: 'underline',
+  },
+  clearButton: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  clearButtonText: {
+    color: '#fff',
+    fontWeight: '700',
   },
 });
