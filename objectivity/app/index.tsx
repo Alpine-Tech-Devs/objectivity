@@ -149,8 +149,17 @@ export default function HomeScreen() {
               <Text style={[styles.sourceLink, side === 'pro' ? styles.proSource : styles.conSource]}>{s.title || s.url || 'source'}</Text>
             </TouchableOpacity>
           ))}
-
           
+          <TouchableOpacity
+            style={styles.counterButton}
+            onPress={() => {
+              const claim = item.claim || '';
+              handleCounter(side, path, claim, rootSide || side);
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.counterButtonText}>Counterargument</Text>
+          </TouchableOpacity>
         </View>
 
         {(item.replies || []).map((r: ArgumentItem, ri: number) => {
@@ -216,34 +225,7 @@ export default function HomeScreen() {
                     <ArgumentCard key={`pro-${i}`} item={a} side="pro" path={[i]} rootSide="pro" />
                   ))}
 
-                  {proArgs.length > 0 && (
-                    <View style={{ paddingVertical: 8 }}>
-                      <TouchableOpacity
-                        style={styles.counterButton}
-                        onPress={() => {
-                          // find deepest path within the latest pro thread
-                          const getDeepestPath = (arr: any[], idx: number) => {
-                            const path = [idx];
-                            let node = arr[idx];
-                            while (node && Array.isArray(node.replies) && node.replies.length > 0) {
-                              const last = node.replies.length - 1;
-                              path.push(last);
-                              node = node.replies[last];
-                            }
-                            return path;
-                          };
-                          const idx = proArgs.length - 1;
-                          const path = getDeepestPath(proArgs, idx);
-                          const lastNode = getNodeFromPath(proArgs, path);
-                          const claim = lastNode?.claim || proArgs[idx]?.claim || '';
-                          handleCounter('pro', path, claim, 'pro');
-                        }}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.counterButtonText}>Counterargument</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  
             </ScrollView>
           </View>
 
@@ -257,33 +239,7 @@ export default function HomeScreen() {
                   <ArgumentCard key={`con-${i}`} item={a} side="con" path={[i]} rootSide="con" />
                 ))}
 
-                {conArgs.length > 0 && (
-                  <View style={{ paddingVertical: 8 }}>
-                    <TouchableOpacity
-                      style={styles.counterButton}
-                      onPress={() => {
-                        const getDeepestPath = (arr: any[], idx: number) => {
-                          const path = [idx];
-                          let node = arr[idx];
-                          while (node && Array.isArray(node.replies) && node.replies.length > 0) {
-                            const last = node.replies.length - 1;
-                            path.push(last);
-                            node = node.replies[last];
-                          }
-                          return path;
-                        };
-                        const idx = conArgs.length - 1;
-                        const path = getDeepestPath(conArgs, idx);
-                        const lastNode = getNodeFromPath(conArgs, path);
-                        const claim = lastNode?.claim || conArgs[idx]?.claim || '';
-                        handleCounter('con', path, claim, 'con');
-                      }}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.counterButtonText}>Counterargument</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                
             </ScrollView>
           </View>
         </View>
