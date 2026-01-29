@@ -21,6 +21,7 @@ app.post('/api/chat', async (req, res) => {
 	// 2) Topic mode: { topic: string } -> returns { pro: [], con: [] }
 
 	const { prompt, topic, messages, targetClaim, targetSide, history } = req.body || {};
+	const { mode } = req.body || {};
 
 	// Topic mode: return pros/cons structured JSON
 	if (topic && typeof topic === 'string') {
@@ -33,6 +34,67 @@ app.post('/api/chat', async (req, res) => {
 			if (cached && !targetClaim) return res.json({ ok: true, cached: true, ...cached });
 
 			// Support counter-argument requests: client may send targetClaim, targetSide, and history
+			if (targetClaim && mode === 'dive') {
+				try {
+					const model = process.env.OPENAI_MODEL || 'gpt-40-mini';
+					const maxTokens = Number(process.env.MAX_TOKENS) || 800;
+					const system = {
+						role: 'system',
+						content: 'You produce a JSON object. Return valid JSON only.'
+					};
+					const userParts = [];
+					userParts.push(`Topic: ${topic}`);
+					userParts.push(`Target claim: ${targetClaim}`);
+					userParts.push('Produce a detailed explanation of this claim (2-3 short paragraphs), and provide exactly 3 supporting or relevant sources with title and URL. Return JSON only with shape { detail: { claim: string, long_summary: string, sources: [{title,url}] } }');
+					if (history && (history.pro || history.con)) {
+						userParts.push('Conversation history:');
+						(history.pro || []).forEach((p, i) => userParts.push(`Pro ${i + 1}: ${p.claim} — ${p.summary}`));
+						(history.con || []).forEach((c, i) => userParts.push(`Con ${i + 1}: ${c.claim} — ${c.summary}`));
+					}
+					const user = { role: 'user', content: userParts.join('\n') };
+
+					const aiResp = await callChatCompletion({ messages: [system, user], model, max_tokens: maxTokens, temperature: 0.2 });
+					const raw = aiResp;
+					const text = (raw?.choices && raw.choices[0] && raw.choices[0].message && raw.choices[0].message.content) || '';
+
+					function tryParseJsonCandidate(str) {
+						if (!str) return null;
+						const first = str.indexOf('{');
+						if (first === -1) return null;
+						let candidate = str.slice(first).trim();
+						try { return JSON.parse(candidate); } catch (e) {}
+						const m = candidate.match(/\{[\s\S]*\}/);
+						if (m) {
+							try { return JSON.parse(m[0]); } catch (e) {}
+						}
+						return null;
+					}
+
+					let parsed = tryParseJsonCandidate(text);
+					if (!parsed) {
+						try {
+							const recoverySystem = {
+								role: 'system',
+								content: 'You are a JSON extractor. Given arbitrary text, extract and return only the JSON object embedded in it. Return valid JSON only.'
+							};
+							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
+							const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
+							const recoveryText = (recoveryResp?.choices && recoveryResp.choices[0] && recoveryResp.choices[0].message && recoveryResp.choices[0].message.content) || '';
+							const recoveryParsed = tryParseJsonCandidate(recoveryText);
+							if (recoveryParsed) parsed = recoveryParsed;
+						} catch (reErr) {
+							console.warn('Recovery attempt failed for dive:', reErr?.message || reErr);
+						}
+					}
+
+					if (!parsed) return res.status(502).json({ error: 'Model did not return valid JSON for dive', raw: text });
+					const detail = parsed.detail || parsed;
+					return res.json({ ok: true, detail });
+				} catch (err) {
+					console.error('Dive pipeline error:', err?.response?.data || err.message || err);
+					return res.status(500).json({ error: 'Server error' });
+				}
+			}
 			if (targetClaim && typeof targetClaim === 'string') {
 				try {
 					const model = process.env.OPENAI_MODEL || 'gpt-40-mini';

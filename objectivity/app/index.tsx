@@ -17,7 +17,10 @@ export default function HomeScreen() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   type Source = { title?: string; url?: string };
-  type ArgumentItem = { claim?: string; summary?: string; sources?: Source[]; replies?: ArgumentItem[] };
+  type ArgumentItem = { claim?: string; summary?: string; sources?: Source[]; replies?: ArgumentItem[]; detail?: Detail };
+  type Detail = { claim?: string; long_summary?: string; sources?: Source[] };
+  // extend ArgumentItem
+  type ArgumentItemWithDetail = ArgumentItem & { detail?: Detail };
 
   const [proArgs, setProArgs] = useState<ArgumentItem[]>([]);
   const [conArgs, setConArgs] = useState<ArgumentItem[]>([]);
@@ -26,6 +29,19 @@ export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
   const isWeb = Platform.OS === 'web';
+  // base URL for the backend API; prefer Expo LAN host if available
+  const apiBase = (() => {
+    try {
+      // attempt to resolve Expo constants to compute LAN host for physical devices
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Constants = require('expo-constants');
+      const host = (Constants?.manifest?.debuggerHost || '').split(':')[0];
+      if (host) return `http://${host}:4200`;
+    } catch (e) {
+      // ignore and fall back to localhost
+    }
+    return 'http://localhost:4200';
+  })();
 
   const handleSubmit = async () => {
     if (!value.trim()) return;
@@ -85,6 +101,20 @@ export default function HomeScreen() {
     });
   }
 
+  function updateNestedSetDetail(arr: ArgumentItem[], path: number[], detail: Detail): ArgumentItem[] {
+    if (!path || path.length === 0) return arr;
+    const idx = path[0];
+    const rest = path.slice(1);
+    return arr.map((it: ArgumentItem, i: number) => {
+      if (i !== idx) return it;
+      if (rest.length === 0) {
+        return { ...it, detail };
+      }
+      const nextReplies = Array.isArray(it.replies) ? it.replies : [];
+      return { ...it, replies: updateNestedSetDetail(nextReplies, rest, detail) };
+    });
+  }
+
   function getNodeFromPath(arr: ArgumentItem[], path: number[]): ArgumentItem | undefined {
     if (!path || path.length === 0) return undefined;
     let node: ArgumentItem | undefined = arr[path[0]];
@@ -137,6 +167,41 @@ export default function HomeScreen() {
     }
   };
 
+  const handleDive = async (side: 'pro' | 'con', path: number[], claim: string, rootSide?: 'pro' | 'con') => {
+    if (!topicState) {
+      setError('No active topic. Submit a topic first.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiBase}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topicState, targetClaim: claim, targetSide: side, history: { pro: proArgs, con: conArgs }, mode: 'dive' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || 'Request failed');
+        return;
+      }
+      const detail = data.detail as Detail | undefined;
+      if (!detail) return;
+      // attach detail to the targeted item in the root array
+      const targetRoot = rootSide || side;
+      if (targetRoot === 'pro') {
+        setProArgs(prev => updateNestedSetDetail(prev, path, detail));
+      } else {
+        setConArgs(prev => updateNestedSetDetail(prev, path, detail));
+      }
+    } catch (err) {
+      console.error('Dive request failed:', err);
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
   function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
     return (
@@ -144,7 +209,7 @@ export default function HomeScreen() {
         <View style={[styles.card, side === 'pro' ? styles.proCard : styles.conCard]}>
           <Text style={[styles.claim, side === 'pro' ? styles.proClaim : styles.conClaim]}>{item.claim || 'Claim'}</Text>
           <Text style={[styles.summary, side === 'pro' ? styles.proSummary : styles.conSummary]}>{item.summary || ''}</Text>
-          {(item.sources || []).map((s: any, j: number) => (
+          {(item.sources || []).map((s: Source, j: number) => (
             <TouchableOpacity key={`src-${j}`} onPress={() => s.url && Linking.openURL(s.url)}>
               <Text style={[styles.sourceLink, side === 'pro' ? styles.proSource : styles.conSource]}>{s.title || s.url || 'source'}</Text>
             </TouchableOpacity>
@@ -160,7 +225,31 @@ export default function HomeScreen() {
           >
             <Text style={styles.counterButtonText}>Counterargument</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.counterButton, { marginLeft: 8, backgroundColor: '#065f46' }]}
+            onPress={() => {
+              const claim = item.claim || '';
+              handleDive(side, path, claim, rootSide || side);
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.counterButtonText}>Dive in</Text>
+          </TouchableOpacity>
         </View>
+
+        {item.detail && (
+          <View style={[styles.detailWrap, side === 'pro' ? styles.detailWrapPro : styles.detailWrapCon]}>
+            <Text style={[styles.detailText, side === 'pro' ? styles.detailTextPro : styles.detailTextCon]}>
+              {item.detail.long_summary}
+            </Text>
+            {(item.detail.sources || []).map((s: Source, si: number) => (
+              <TouchableOpacity key={`detail-src-${si}`} onPress={() => s.url && Linking.openURL(s.url)}>
+                <Text style={[styles.detailSource, side === 'pro' ? styles.detailSourcePro : styles.detailSourceCon]}>{s.title || s.url}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {(item.replies || []).map((r: ArgumentItem, ri: number) => {
           const childSide = side === 'pro' ? 'con' : 'pro';
@@ -408,14 +497,48 @@ const styles = StyleSheet.create({
   clearButton: {
     backgroundColor: '#ef4444',
     paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginTop: 8,
+  },
   debugText: {
     fontSize: 12,
     color: '#6B7280',
     marginTop: 2,
   },
-    paddingVertical: 8,
-    borderRadius: 10,
+  detailWrap: {
     marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  detailText: {
+    color: '#fff',
+    marginBottom: 8,
+    fontSize: 14,
+  },
+  detailSource: {
+    color: '#93C5FD',
+    textDecorationLine: 'underline',
+    marginBottom: 6,
+  },
+  detailWrapPro: {
+    backgroundColor: 'rgba(124,58,237,0.12)'
+  },
+  detailTextPro: {
+    color: '#000000'
+  },
+  detailWrapCon: {
+    backgroundColor: 'rgba(249,115,22,0.12)'
+  },
+  detailTextCon: {
+    color: '#071327'
+  },
+  detailSourcePro: {
+    color: '#1D4ED8'
+  },
+  detailSourceCon: {
+    color: '#1E40AF'
   },
   clearButtonText: {
     color: '#fff',
