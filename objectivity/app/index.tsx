@@ -23,8 +23,9 @@ export default function HomeScreen() {
   const [conArgs, setConArgs] = useState<ArgumentItem[]>([]);
   const [topicState, setTopicState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
+  const isWeb = Platform.OS === 'web';
 
   const handleSubmit = async () => {
     if (!value.trim()) return;
@@ -204,7 +205,10 @@ export default function HomeScreen() {
         <View style={[styles.resultsContainer, { flexDirection: isWide ? 'row' : 'column' }]}>
           <View style={[styles.column, { width: isWide ? '48%' : '100%' }]}>
             <Text style={styles.columnTitle}>Pro</Text>
-            <ScrollView style={styles.columnScroll}>
+            <ScrollView
+              style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : undefined]}
+              contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
+            >
                   {proArgs.map((a: ArgumentItem, i: number) => (
                     <ArgumentCard key={`pro-${i}`} item={a} side="pro" path={[i]} rootSide="pro" />
                   ))}
@@ -242,7 +246,10 @@ export default function HomeScreen() {
 
           <View style={[styles.column, { width: isWide ? '48%' : '100%', marginTop: isWide ? 0 : 12 }]}>
             <Text style={styles.columnTitle}>Con</Text>
-            <ScrollView style={styles.columnScroll}>
+            <ScrollView
+              style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : undefined]}
+              contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
+            >
                 {conArgs.map((a: ArgumentItem, i: number) => (
                   <ArgumentCard key={`con-${i}`} item={a} side="con" path={[i]} rootSide="con" />
                 ))}
