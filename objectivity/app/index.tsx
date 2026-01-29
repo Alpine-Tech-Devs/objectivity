@@ -16,8 +16,11 @@ import {
 export default function HomeScreen() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
-  const [proArgs, setProArgs] = useState([]);
-  const [conArgs, setConArgs] = useState([]);
+  type Source = { title?: string; url?: string };
+  type ArgumentItem = { claim?: string; summary?: string; sources?: Source[]; replies?: ArgumentItem[] };
+
+  const [proArgs, setProArgs] = useState<ArgumentItem[]>([]);
+  const [conArgs, setConArgs] = useState<ArgumentItem[]>([]);
   const [topicState, setTopicState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { width } = useWindowDimensions();
@@ -57,11 +60,11 @@ export default function HomeScreen() {
     }
   };
 
-  function updateNestedInsert(arr, path, itemsToAppend) {
+  function updateNestedInsert(arr: ArgumentItem[], path: number[], itemsToAppend: ArgumentItem[]): ArgumentItem[] {
     if (!path || path.length === 0) return arr;
     const idx = path[0];
     const rest = path.slice(1);
-    return arr.map((it, i) => {
+    return arr.map((it: ArgumentItem, i: number) => {
       if (i !== idx) return it;
       if (rest.length === 0) {
         const replies = Array.isArray(it.replies) ? it.replies.slice() : [];
@@ -72,7 +75,17 @@ export default function HomeScreen() {
     });
   }
 
-  const handleCounter = async (side: 'pro' | 'con', path: number[], claim: string) => {
+  function getNodeFromPath(arr: ArgumentItem[], path: number[]): ArgumentItem | undefined {
+    if (!path || path.length === 0) return undefined;
+    let node: ArgumentItem | undefined = arr[path[0]];
+    for (let i = 1; i < path.length; i++) {
+      node = node?.replies?.[path[i]];
+      if (!node) return undefined;
+    }
+    return node;
+  }
+
+  const handleCounter = async (side: 'pro' | 'con', path: number[], claim: string, rootSide?: 'pro' | 'con') => {
     if (!topicState) {
       setError('No active topic. Submit a topic first.');
       return;
@@ -96,10 +109,12 @@ export default function HomeScreen() {
         return;
       }
 
-      const generated = (side === 'pro' ? data.con || [] : data.pro || []);
+      const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])) as ArgumentItem[];
       if (!generated || generated.length === 0) return;
 
-      if (side === 'pro') {
+      // Insert generated replies into the array that owns the targeted item (rootSide)
+      const targetRoot = rootSide || side;
+      if (targetRoot === 'pro') {
         setProArgs(prev => updateNestedInsert(prev, path, generated));
       } else {
         setConArgs(prev => updateNestedInsert(prev, path, generated));
@@ -112,7 +127,8 @@ export default function HomeScreen() {
     }
   };
 
-  function ArgumentCard({ item, side, path = [] }: any) {
+  type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
+  function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
     return (
       <View style={{ marginTop: 8 }}>
         <View style={[styles.card, side === 'pro' ? styles.proCard : styles.conCard]}>
@@ -127,9 +143,9 @@ export default function HomeScreen() {
           
         </View>
 
-        {(item.replies || []).map((r: any, ri: number) => (
+        {(item.replies || []).map((r: ArgumentItem, ri: number) => (
           <View key={`reply-${ri}`} style={styles.replyWrap}>
-            <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} />
+            <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} rootSide={rootSide} />
           </View>
         ))}
       </View>
@@ -173,8 +189,8 @@ export default function HomeScreen() {
           <View style={[styles.column, { width: isWide ? '48%' : '100%' }]}>
             <Text style={styles.columnTitle}>Pro</Text>
             <ScrollView style={styles.columnScroll}>
-                  {proArgs.map((a: any, i: number) => (
-                    <ArgumentCard key={`pro-${i}`} item={a} side="pro" path={[i]} />
+                  {proArgs.map((a: ArgumentItem, i: number) => (
+                    <ArgumentCard key={`pro-${i}`} item={a} side="pro" path={[i]} rootSide="pro" />
                   ))}
 
                   {proArgs.length > 0 && (
@@ -182,9 +198,22 @@ export default function HomeScreen() {
                       <TouchableOpacity
                         style={styles.counterButton}
                         onPress={() => {
+                          // find deepest path within the latest pro thread
+                          const getDeepestPath = (arr: any[], idx: number) => {
+                            const path = [idx];
+                            let node = arr[idx];
+                            while (node && Array.isArray(node.replies) && node.replies.length > 0) {
+                              const last = node.replies.length - 1;
+                              path.push(last);
+                              node = node.replies[last];
+                            }
+                            return path;
+                          };
                           const idx = proArgs.length - 1;
-                          const claim = proArgs[idx]?.claim || '';
-                          handleCounter('pro', [idx], claim);
+                          const path = getDeepestPath(proArgs, idx);
+                          const lastNode = getNodeFromPath(proArgs, path);
+                          const claim = lastNode?.claim || proArgs[idx]?.claim || '';
+                          handleCounter('pro', path, claim, 'pro');
                         }}
                         accessibilityRole="button"
                       >
@@ -198,8 +227,8 @@ export default function HomeScreen() {
           <View style={[styles.column, { width: isWide ? '48%' : '100%', marginTop: isWide ? 0 : 12 }]}>
             <Text style={styles.columnTitle}>Con</Text>
             <ScrollView style={styles.columnScroll}>
-                {conArgs.map((a: any, i: number) => (
-                  <ArgumentCard key={`con-${i}`} item={a} side="con" path={[i]} />
+                {conArgs.map((a: ArgumentItem, i: number) => (
+                  <ArgumentCard key={`con-${i}`} item={a} side="con" path={[i]} rootSide="con" />
                 ))}
 
                 {conArgs.length > 0 && (
@@ -207,9 +236,21 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       style={styles.counterButton}
                       onPress={() => {
+                        const getDeepestPath = (arr: any[], idx: number) => {
+                          const path = [idx];
+                          let node = arr[idx];
+                          while (node && Array.isArray(node.replies) && node.replies.length > 0) {
+                            const last = node.replies.length - 1;
+                            path.push(last);
+                            node = node.replies[last];
+                          }
+                          return path;
+                        };
                         const idx = conArgs.length - 1;
-                        const claim = conArgs[idx]?.claim || '';
-                        handleCounter('con', [idx], claim);
+                        const path = getDeepestPath(conArgs, idx);
+                        const lastNode = getNodeFromPath(conArgs, path);
+                        const claim = lastNode?.claim || conArgs[idx]?.claim || '';
+                        handleCounter('con', path, claim, 'con');
                       }}
                       accessibilityRole="button"
                     >

@@ -20,7 +20,7 @@ app.post('/api/chat', async (req, res) => {
 	// 1) Chat mode: { prompt: string } (legacy)
 	// 2) Topic mode: { topic: string } -> returns { pro: [], con: [] }
 
-	const { prompt, topic, messages } = req.body || {};
+	const { prompt, topic, messages, targetClaim, targetSide, history } = req.body || {};
 
 	// Topic mode: return pros/cons structured JSON
 	if (topic && typeof topic === 'string') {
@@ -28,10 +28,11 @@ app.post('/api/chat', async (req, res) => {
 			const normalized = topic.trim().toLowerCase();
 			const cacheKey = `args:${normalized}`;
 			const cached = cacheGet(cacheKey);
-			if (cached) return res.json({ ok: true, cached: true, ...cached });
+			// If this is a counter-argument request (has targetClaim), do not return the cached
+			// topic result — we need to generate a fresh rebuttal.
+			if (cached && !targetClaim) return res.json({ ok: true, cached: true, ...cached });
 
 			// Support counter-argument requests: client may send targetClaim, targetSide, and history
-			const { targetClaim, targetSide, history } = req.body || {};
 			if (targetClaim && typeof targetClaim === 'string') {
 				try {
 					const model = process.env.OPENAI_MODEL || 'gpt-40-mini';
@@ -57,10 +58,7 @@ app.post('/api/chat', async (req, res) => {
 
 					const user = { role: 'user', content: userParts.join('\n') };
 
-					const aiResp = await callChatCompletion({ messages: [system, user], model, max_tokens: maxTokens, temperature: 0 });
-					const raw = aiResp;
-					const text = (raw?.choices && raw.choices[0] && raw.choices[0].message && raw.choices[0].message.content) || '';
-
+					// robust parse helper
 					function tryParseJsonCandidate(str) {
 						if (!str) return null;
 						const first = str.indexOf('{');
@@ -84,8 +82,6 @@ app.post('/api/chat', async (req, res) => {
 						return null;
 					}
 
-					let parsed = tryParseJsonCandidate(text);
-
 					function norm(s) { return (s||'').toString().trim().toLowerCase().replace(/[\s\W_]+/g,' '); }
 					const existingClaimsSet = new Set();
 					if (history) {
@@ -94,35 +90,47 @@ app.post('/api/chat', async (req, res) => {
 					}
 					existingClaimsSet.add(norm(targetClaim));
 
-					// filter parsed to ensure novelty
-					let parsedOpposite = null;
-					if (parsed) {
-						parsedOpposite = (parsed[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
-					}
+					let parsed = null;
+					let parsedOpposite = [];
+					let lastText = '';
 
-					// If nothing novel was produced, attempt one retry requesting different wording
-					if ((!parsedOpposite || parsedOpposite.length === 0) && parsed) {
+					// Attempt up to 3 tries with increasing creativity to get novel rebuttals
+					const temps = [0.0, 0.35, 0.7];
+					for (let attempt = 0; attempt < temps.length; attempt++) {
+						const temp = temps[attempt];
 						try {
-							const retryUser = { role: 'user', content: userParts.join('\n') + '\n\nIf your previous response repeated existing claims, generate different rebuttals now and ensure they are novel.' };
-							const retryResp = await callChatCompletion({ messages: [system, retryUser], model, max_tokens: maxTokens, temperature: 0.2 });
-							const retryText = (retryResp?.choices && retryResp.choices[0] && retryResp.choices[0].message && retryResp.choices[0].message.content) || '';
-							const retryParsed = tryParseJsonCandidate(retryText);
-							if (retryParsed) {
-								parsedOpposite = (retryParsed[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
-								parsed = retryParsed;
+							const instructExtra = attempt === 0 ? '' : '\n\nTry to rephrase and produce different claims than earlier responses.';
+							const user = { role: 'user', content: userParts.join('\n') + instructExtra };
+							const aiResp = await callChatCompletion({ messages: [system, user], model, max_tokens: maxTokens, temperature: temp });
+							const raw = aiResp;
+							const text = (raw?.choices && raw.choices[0] && raw.choices[0].message && raw.choices[0].message.content) || '';
+							lastText = text;
+							const candidate = tryParseJsonCandidate(text);
+							if (candidate) {
+								parsed = candidate;
+								const oppItems = (candidate[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
+								if (oppItems && oppItems.length > 0) {
+									parsedOpposite = oppItems;
+									break;
+								}
 							}
-						} catch (rerr) {
-							console.warn('Retry for novel rebuttals failed:', rerr?.message || rerr);
+						} catch (e) {
+							console.warn('Attempt', attempt, 'failed:', e?.message || e);
 						}
 					}
 
-					if (!parsed) {
+					// If we didn't get novel items, fall back to any parsed items (deduped)
+					if ((!parsedOpposite || parsedOpposite.length === 0) && parsed) {
+						parsedOpposite = (parsed[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
+					}
+
+					if (!parsed && (!parsedOpposite || parsedOpposite.length === 0)) {
 						try {
 							const recoverySystem = {
 								role: 'system',
 								content: 'You are a JSON extractor. Given arbitrary text, extract and return only the JSON object embedded in it. Return valid JSON only.'
 							};
-							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
+							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${lastText}` };
 							const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
 							const recoveryText = (recoveryResp?.choices && recoveryResp.choices[0] && recoveryResp.choices[0].message && recoveryResp.choices[0].message.content) || '';
 							const recoveryParsed = tryParseJsonCandidate(recoveryText);
