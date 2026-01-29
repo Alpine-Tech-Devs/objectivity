@@ -43,11 +43,11 @@ export default function HomeScreen() {
         setError(data?.error || 'Request failed');
         setProArgs([]);
         setConArgs([]);
-      } else {
+        } else {
         setProArgs(data.pro || []);
         setConArgs(data.con || []);
         setTopicState(topic);
-        setValue("");
+        // keep the input value so the user can edit or submit again
       }
     } catch (err) {
       console.error("Request failed:", err);
@@ -115,12 +115,12 @@ export default function HomeScreen() {
   function ArgumentCard({ item, side, path = [] }: any) {
     return (
       <View style={{ marginTop: 8 }}>
-        <View style={styles.card}>
-          <Text style={styles.claim}>{item.claim || 'Claim'}</Text>
-          <Text style={styles.summary}>{item.summary || ''}</Text>
+        <View style={[styles.card, side === 'pro' ? styles.proCard : styles.conCard]}>
+          <Text style={[styles.claim, side === 'pro' ? styles.proClaim : styles.conClaim]}>{item.claim || 'Claim'}</Text>
+          <Text style={[styles.summary, side === 'pro' ? styles.proSummary : styles.conSummary]}>{item.summary || ''}</Text>
           {(item.sources || []).map((s: any, j: number) => (
             <TouchableOpacity key={`src-${j}`} onPress={() => s.url && Linking.openURL(s.url)}>
-              <Text style={styles.sourceLink}>{s.title || s.url || 'source'}</Text>
+              <Text style={[styles.sourceLink, side === 'pro' ? styles.proSource : styles.conSource]}>{s.title || s.url || 'source'}</Text>
             </TouchableOpacity>
           ))}
 
@@ -232,9 +232,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   input: {
-    width: "80%",
-    maxWidth: 400,
-    padding: 14,
+    flex: 1,
+    minWidth: 120,
+    padding: 12,
     borderWidth: 1,
     borderRadius: 8,
     fontSize: 16,
@@ -303,6 +303,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
+    flexShrink: 0,
   },
   submitButtonText: {
     color: '#fff',
@@ -338,5 +339,33 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: '#f3f4f6',
     paddingLeft: 10,
+  },
+  proCard: {
+    backgroundColor: '#7C3AED',
+    borderColor: '#6D28D9',
+  },
+  proClaim: {
+    color: '#fff',
+  },
+  proSummary: {
+    color: '#F3E8FF',
+  },
+  proSource: {
+    color: '#E9D5FF',
+    textDecorationLine: 'underline',
+  },
+  conCard: {
+    backgroundColor: '#F97316',
+    borderColor: '#EA580C',
+  },
+  conClaim: {
+    color: '#071327',
+  },
+  conSummary: {
+    color: '#0F172A',
+  },
+  conSource: {
+    color: '#1D4ED8',
+    textDecorationLine: 'underline',
   },
 });
