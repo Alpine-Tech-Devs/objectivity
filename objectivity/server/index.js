@@ -30,6 +30,122 @@ app.post('/api/chat', async (req, res) => {
 			const cached = cacheGet(cacheKey);
 			if (cached) return res.json({ ok: true, cached: true, ...cached });
 
+			// Support counter-argument requests: client may send targetClaim, targetSide, and history
+			const { targetClaim, targetSide, history } = req.body || {};
+			if (targetClaim && typeof targetClaim === 'string') {
+				try {
+					const model = process.env.OPENAI_MODEL || 'gpt-40-mini';
+					const maxTokens = Number(process.env.MAX_TOKENS) || 800;
+
+					const system = {
+						role: 'system',
+						content:
+							'You produce a JSON object with shape { pro: [..], con: [..] }. Each item must have { claim, summary, sources } where sources is an array of { title, url }. Return JSON only, no surrounding text.'
+					};
+
+					const opposite = targetSide === 'pro' ? 'con' : 'pro';
+					const userParts = [];
+					userParts.push(`Topic: ${topic}`);
+					userParts.push(`Target claim to rebut: ${targetClaim}`);
+					userParts.push(`Generate 1-2 ${opposite} arguments that directly respond to and rebut the target claim. Return only JSON with shape { pro: [...], con: [...] } and include sources (title,url) where possible. If you cannot provide a real URL, set url to null.`);
+					userParts.push('Do not repeat claims that already appear in the conversation history or the target claim. Produce novel rebuttals (different wording and different claims).');
+					if (history && (history.pro || history.con)) {
+						userParts.push('Conversation history:');
+						(history.pro || []).forEach((p, i) => userParts.push(`Pro ${i + 1}: ${p.claim} — ${p.summary}`));
+						(history.con || []).forEach((c, i) => userParts.push(`Con ${i + 1}: ${c.claim} — ${c.summary}`));
+					}
+
+					const user = { role: 'user', content: userParts.join('\n') };
+
+					const aiResp = await callChatCompletion({ messages: [system, user], model, max_tokens: maxTokens, temperature: 0 });
+					const raw = aiResp;
+					const text = (raw?.choices && raw.choices[0] && raw.choices[0].message && raw.choices[0].message.content) || '';
+
+					function tryParseJsonCandidate(str) {
+						if (!str) return null;
+						const first = str.indexOf('{');
+						if (first === -1) return null;
+						let candidate = str.slice(first).trim();
+						try { return JSON.parse(candidate); } catch (e) {}
+						const m = candidate.match(/\{[\s\S]*\}/);
+						if (m) {
+							try { return JSON.parse(m[0]); } catch (e) {}
+						}
+						const openBraces = (candidate.match(/\{/g) || []).length;
+						const closeBraces = (candidate.match(/\}/g) || []).length;
+						const openBrackets = (candidate.match(/\[/g) || []).length;
+						const closeBrackets = (candidate.match(/\]/g) || []).length;
+						let needBraces = openBraces - closeBraces;
+						let needBrackets = openBrackets - closeBrackets;
+						if (needBraces < 0) needBraces = 0;
+						if (needBrackets < 0) needBrackets = 0;
+						const fixed = candidate + (']'.repeat(needBrackets)) + ('}'.repeat(needBraces));
+						try { return JSON.parse(fixed); } catch (e) {}
+						return null;
+					}
+
+					let parsed = tryParseJsonCandidate(text);
+
+					function norm(s) { return (s||'').toString().trim().toLowerCase().replace(/[\s\W_]+/g,' '); }
+					const existingClaimsSet = new Set();
+					if (history) {
+						(history.pro || []).forEach(p => existingClaimsSet.add(norm(p.claim)));
+						(history.con || []).forEach(c => existingClaimsSet.add(norm(c.claim)));
+					}
+					existingClaimsSet.add(norm(targetClaim));
+
+					// filter parsed to ensure novelty
+					let parsedOpposite = null;
+					if (parsed) {
+						parsedOpposite = (parsed[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
+					}
+
+					// If nothing novel was produced, attempt one retry requesting different wording
+					if ((!parsedOpposite || parsedOpposite.length === 0) && parsed) {
+						try {
+							const retryUser = { role: 'user', content: userParts.join('\n') + '\n\nIf your previous response repeated existing claims, generate different rebuttals now and ensure they are novel.' };
+							const retryResp = await callChatCompletion({ messages: [system, retryUser], model, max_tokens: maxTokens, temperature: 0.2 });
+							const retryText = (retryResp?.choices && retryResp.choices[0] && retryResp.choices[0].message && retryResp.choices[0].message.content) || '';
+							const retryParsed = tryParseJsonCandidate(retryText);
+							if (retryParsed) {
+								parsedOpposite = (retryParsed[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
+								parsed = retryParsed;
+							}
+						} catch (rerr) {
+							console.warn('Retry for novel rebuttals failed:', rerr?.message || rerr);
+						}
+					}
+
+					if (!parsed) {
+						try {
+							const recoverySystem = {
+								role: 'system',
+								content: 'You are a JSON extractor. Given arbitrary text, extract and return only the JSON object embedded in it. Return valid JSON only.'
+							};
+							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
+							const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
+							const recoveryText = (recoveryResp?.choices && recoveryResp.choices[0] && recoveryResp.choices[0].message && recoveryResp.choices[0].message.content) || '';
+							const recoveryParsed = tryParseJsonCandidate(recoveryText);
+
+							if (recoveryParsed) {
+								const result = { pro: recoveryParsed.pro || [], con: recoveryParsed.con || [] };
+								return res.json({ ok: true, cached: false, ...result });
+							}
+						} catch (reErr) {
+							console.warn('Recovery attempt failed:', reErr?.message || reErr);
+						}
+						return res.status(502).json({ error: 'Model did not return valid JSON', raw: text });
+					}
+
+					const result = { pro: parsed.pro || [], con: parsed.con || [] };
+					return res.json({ ok: true, cached: false, ...result });
+				} catch (err) {
+					console.error('Counter pipeline error:', err?.response?.data || err.message || err);
+					const status = err?.response?.status || 500;
+					return res.status(status).json({ error: err?.response?.data || err.message || 'Server error' });
+				}
+			}
+
 			const model = process.env.OPENAI_MODEL || 'gpt-40-mini';
 			const maxTokens = Number(process.env.MAX_TOKENS) || 800;
 
