@@ -153,11 +153,14 @@ export default function HomeScreen() {
           
         </View>
 
-        {(item.replies || []).map((r: ArgumentItem, ri: number) => (
-          <View key={`reply-${ri}`} style={styles.replyWrap}>
-            <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} rootSide={rootSide} />
-          </View>
-        ))}
+        {(item.replies || []).map((r: ArgumentItem, ri: number) => {
+          const childSide = side === 'pro' ? 'con' : 'pro';
+          return (
+            <View key={`reply-${ri}`} style={[styles.replyWrap, childSide === 'pro' ? styles.replyWrapPro : styles.replyWrapCon]}>
+              <ArgumentCard item={r} side={childSide} path={path.concat(ri)} rootSide={rootSide} />
+            </View>
+          );
+        })}
       </View>
     );
   }
@@ -374,9 +377,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   card: {
-    marginBottom: 12,
-    padding: 12,
+    marginBottom: 14,
+    padding: 16,
     borderRadius: 12,
+    minHeight: 72,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#eee',
@@ -401,8 +405,14 @@ const styles = StyleSheet.create({
   replyWrap: {
     marginLeft: 14,
     borderLeftWidth: 2,
-    borderLeftColor: '#f3f4f6',
     paddingLeft: 10,
+    marginTop: 8,
+  },
+  replyWrapPro: {
+    borderLeftColor: 'rgba(233, 213, 255, 0.6)',
+  },
+  replyWrapCon: {
+    borderLeftColor: 'rgba(255, 218, 185, 0.6)',
   },
   proCard: {
     backgroundColor: '#7C3AED',
@@ -410,13 +420,17 @@ const styles = StyleSheet.create({
   },
   proClaim: {
     color: '#fff',
+    fontSize: 16,
   },
   proSummary: {
     color: '#F3E8FF',
+    fontSize: 14,
+    lineHeight: 20,
   },
   proSource: {
     color: '#E9D5FF',
     textDecorationLine: 'underline',
+    fontSize: 13,
   },
   conCard: {
     backgroundColor: '#F97316',
@@ -426,15 +440,23 @@ const styles = StyleSheet.create({
     color: '#071327',
   },
   conSummary: {
-    color: '#0F172A',
+    color: '#071327',
+    fontSize: 16,
   },
   conSource: {
-    color: '#1D4ED8',
+    color: '#0F172A',
+    fontSize: 14,
+    lineHeight: 20,
     textDecorationLine: 'underline',
   },
   clearButton: {
     backgroundColor: '#ef4444',
     paddingHorizontal: 12,
+  debugText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
     paddingVertical: 8,
     borderRadius: 10,
     marginTop: 8,
