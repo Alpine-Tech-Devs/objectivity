@@ -11,6 +11,61 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Normalize and validate URLs before returning to client.
+const axiosValidate = require('axios');
+async function normalizeUrl(rawUrl) {
+	if (!rawUrl) return null;
+	try {
+		// unwrap common redirect wrappers (google/bing)
+		const u = new URL(rawUrl);
+		const hostname = (u.hostname || '').toLowerCase();
+		if ((hostname.includes('google.') || hostname.includes('bing.')) && u.searchParams.get('q')) {
+			rawUrl = u.searchParams.get('q');
+		}
+	} catch (e) {
+		// rawUrl might be missing protocol; continue
+	}
+	// ensure protocol
+	if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
+	try {
+		const u = new URL(rawUrl);
+		return u.toString();
+	} catch (e) {
+		return null;
+	}
+}
+
+async function validateUrl(url) {
+	if (!url) return null;
+	try {
+		const head = await axiosValidate.head(url, { timeout: 3000, maxRedirects: 5, validateStatus: null });
+		if (head.status >= 200 && head.status < 400) return url;
+		// fallback to GET for servers that block HEAD
+		const get = await axiosValidate.get(url, { timeout: 3000, maxRedirects: 5, validateStatus: null });
+		if (get.status >= 200 && get.status < 400) return url;
+		return null;
+	} catch (e) {
+		return null;
+	}
+}
+
+async function normalizeAndValidateSourcesForItems(items) {
+	if (!Array.isArray(items)) return items;
+	return Promise.all(items.map(async it => {
+		const sources = Array.isArray(it.sources) ? it.sources : [];
+		const validated = await Promise.all(sources.map(async s => {
+			const title = s && s.title ? s.title : null;
+			const raw = s && s.url ? s.url : null;
+			const norm = await normalizeUrl(raw);
+			if (!norm) return { title, url: null, available: false };
+			const ok = await validateUrl(norm);
+			if (!ok) return { title, url: null, available: false };
+			return { title, url: norm, available: true };
+		}));
+		return { ...it, sources: validated };
+	}));
+}
+
 const { set: cacheSet, get: cacheGet } = require('./lib/cache');
 const { search } = require('./lib/search');
 const { callChatCompletion } = require('./lib/openai');
@@ -40,7 +95,12 @@ app.post('/api/chat', async (req, res) => {
 					const maxTokens = Number(process.env.MAX_TOKENS) || 800;
 					const system = {
 						role: 'system',
-						content: 'You produce a JSON object. Return valid JSON only.'
+						content: [
+							'You are Objective Debate Assistant. Produce JSON ONLY, matching the response schema exactly.',
+							"Schema: { detail: { claim: string, long_summary: string, sources: [{ title?: string, url?: string }] } }",
+							"Rules: claim ≤ 20 words; long_summary = 2–3 short paragraphs; sources must be from provided retrievals when available; do NOT invent URLs. If no reliable sources, set sources: [] and long_summary to 'No reliable sources found.'",
+							"Return valid JSON only, no surrounding commentary."
+						].join(' ')
 					};
 					const userParts = [];
 					userParts.push(`Topic: ${topic}`);
@@ -75,7 +135,10 @@ app.post('/api/chat', async (req, res) => {
 						try {
 							const recoverySystem = {
 								role: 'system',
-								content: 'You are a JSON extractor. Given arbitrary text, extract and return only the JSON object embedded in it. Return valid JSON only.'
+								content: [
+									'You are a JSON extractor. Given arbitrary text, extract and return ONLY the JSON object embedded in it.',
+									"Ensure the extracted JSON matches schema: { pro:[...], con:[...] } and return valid JSON only."
+								].join(' ')
 							};
 							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
 							const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
@@ -88,7 +151,17 @@ app.post('/api/chat', async (req, res) => {
 					}
 
 					if (!parsed) return res.status(502).json({ error: 'Model did not return valid JSON for dive', raw: text });
-					const detail = parsed.detail || parsed;
+					let detail = parsed.detail || parsed;
+					if (detail && Array.isArray(detail.sources)) {
+						// normalize/validate each source
+						detail.sources = await Promise.all(detail.sources.map(async s => {
+							const title = s && s.title ? s.title : null;
+							const norm = await normalizeUrl(s && s.url);
+							if (!norm) return { title, url: null, available: false };
+							const ok = await validateUrl(norm);
+							return ok ? { title, url: norm, available: true } : { title, url: null, available: false };
+						}));
+					}
 					return res.json({ ok: true, detail });
 				} catch (err) {
 					console.error('Dive pipeline error:', err?.response?.data || err.message || err);
@@ -102,8 +175,12 @@ app.post('/api/chat', async (req, res) => {
 
 					const system = {
 						role: 'system',
-						content:
-							'You produce a JSON object with shape { pro: [..], con: [..] }. Each item must have { claim, summary, sources } where sources is an array of { title, url }. Return JSON only, no surrounding text.'
+						content: [
+							'You are Objective Debate Assistant. Produce JSON ONLY, matching the response schema exactly.',
+							"Schema: { pro: [{ claim: string, summary: string, sources: [{ title?: string, url?: string }] }], con: [...] }",
+							"Rules: claim ≤ 20 words; summary = 1–3 short sentences; sources must reference provided retrievals when available; do NOT invent URLs. If unsure, set sources: [] and summary: 'No reliable sources found.'",
+							"Return valid JSON only, no surrounding commentary."
+						].join(' ')
 					};
 
 					const opposite = targetSide === 'pro' ? 'con' : 'pro';
@@ -207,7 +284,10 @@ app.post('/api/chat', async (req, res) => {
 						return res.status(502).json({ error: 'Model did not return valid JSON', raw: text });
 					}
 
-					const result = { pro: parsed.pro || [], con: parsed.con || [] };
+					let result = { pro: parsed.pro || [], con: parsed.con || [] };
+					// normalize and validate sources for returned items
+					result.pro = await normalizeAndValidateSourcesForItems(result.pro);
+					result.con = await normalizeAndValidateSourcesForItems(result.con);
 					return res.json({ ok: true, cached: false, ...result });
 				} catch (err) {
 					console.error('Counter pipeline error:', err?.response?.data || err.message || err);
@@ -229,16 +309,24 @@ app.post('/api/chat', async (req, res) => {
 
 			const system = {
 				role: 'system',
-				content:
-					'You produce a JSON object with shape { pro: [..], con: [..] }. Each item must have { claim, summary, sources } where sources is an array of { title, url }. Return JSON only, no surrounding text.'
+				content: [
+					'You are Objective Debate Assistant. Produce JSON ONLY, matching the response schema exactly.',
+					"Schema: { pro: [{ claim: string, summary: string, sources: [{ title?: string, url?: string }] }], con: [...] }",
+					"Rules: claim ≤ 20 words; summary = 1–3 short sentences; sources must reference provided retrievals when available; do NOT invent URLs. If unsure, set sources: [] and summary: 'No reliable sources found.'",
+					"Return valid JSON only, no surrounding commentary."
+				].join(' ')
+			};
+
+			// Build retrieval payload (will be attached for the model to cite from)
+			const retrievals = {
+				pro: proResults.map(r => ({ title: r.title, url: r.url || null, snippet: r.snippet })),
+				con: conResults.map(r => ({ title: r.title, url: r.url || null, snippet: r.snippet })),
 			};
 
 			const userParts = [];
 			userParts.push(`Topic: ${topic}`);
-			userParts.push('Pro search results:');
-			proResults.forEach((r, i) => userParts.push(`${i + 1}. ${r.title} | ${r.url || ''} | ${r.snippet}`));
-			userParts.push('Con search results:');
-			conResults.forEach((r, i) => userParts.push(`${i + 1}. ${r.title} | ${r.url || ''} | ${r.snippet}`));
+			userParts.push('Retrievals (use only these when citing):');
+			userParts.push(JSON.stringify(retrievals, null, 2));
 
 			let user = { role: 'user', content: userParts.join('\n') };
 
@@ -248,7 +336,12 @@ app.post('/api/chat', async (req, res) => {
 			if ((!proResults || proResults.length === 0) && (!conResults || conResults.length === 0)) {
 				user = {
 					role: 'user',
-					content: `Topic: ${topic}\n\nProvide exactly 3 Pro arguments and 3 Con arguments for the topic. Return only JSON with shape { pro:[{claim,summary,sources:[{title,url}]}], con:[...] }. For each source, include a title and a url. If you cannot provide a real URL, set url to null. Keep summaries concise (1-2 sentences).`,
+					content: [
+						`Topic: ${topic}`,
+						'No retrievals available. Provide exactly 3 Pro arguments and 3 Con arguments for the topic.',
+						"Return only JSON with shape { pro:[{claim,summary,sources:[{title,url}]}], con:[...] }.",
+						"Rules: claim ≤ 20 words; summary = 1–3 short sentences; if you cannot provide a real URL, set url to null; if unsure, set sources: [] and summary: 'No reliable sources found.'"
+					].join(' ')
 				};
 			}
 
@@ -285,7 +378,10 @@ app.post('/api/chat', async (req, res) => {
 				try {
 					const recoverySystem = {
 						role: 'system',
-						content: 'You are a JSON extractor. Given arbitrary text, extract and return only the JSON object embedded in it. Return valid JSON only.'
+						content: [
+							'You are a JSON extractor. Given arbitrary text, extract and return ONLY the JSON object embedded in it.',
+							"Ensure the extracted JSON matches schema: { detail: { claim, long_summary, sources } } and return valid parsable JSON only."
+						].join(' ')
 					};
 					const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
 					const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
@@ -304,7 +400,10 @@ app.post('/api/chat', async (req, res) => {
 				return res.status(502).json({ error: 'Model did not return valid JSON', raw: text });
 			}
 
-			const result = { pro: parsed.pro || [], con: parsed.con || [] };
+			let result = { pro: parsed.pro || [], con: parsed.con || [] };
+			// normalize/validate sources
+			result.pro = await normalizeAndValidateSourcesForItems(result.pro);
+			result.con = await normalizeAndValidateSourcesForItems(result.con);
 			cacheSet(cacheKey, result, 60 * 10);
 			return res.json({ ok: true, cached: false, ...result });
 		} catch (err) {
