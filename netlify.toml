@@ -1,0 +1,8 @@
+[build]
+  command = "npm run build && cd server && npm install"
+  publish = "web-build"
+  functions = "server/netlify/functions"
+
+[dev]
+  command = "npm run build && cd server && npm install && netlify dev"
+  port = 8888

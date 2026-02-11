@@ -457,7 +457,11 @@ app.post('/api/chat', async (req, res) => {
 	}
 });
 
-app.listen(port, () => {
-	console.log(`Server listening on http://localhost:${port}`);
-});
+if (require.main === module) {
+	app.listen(port, () => {
+		console.log(`Server listening on http://localhost:${port}`);
+	});
+}
+
+module.exports = app;
 
