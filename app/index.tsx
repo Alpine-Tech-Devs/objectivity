@@ -1,16 +1,16 @@
 import { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
+  ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
   TouchableOpacity,
-  Linking,
-  ActivityIndicator,
   useWindowDimensions,
+  View,
 } from "react-native";
 
 export default function HomeScreen() {
