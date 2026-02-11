@@ -1,16 +1,16 @@
 import { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
+  ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
   TouchableOpacity,
-  Linking,
-  ActivityIndicator,
   useWindowDimensions,
+  View,
 } from "react-native";
 
 export default function HomeScreen() {
@@ -29,10 +29,24 @@ export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
   const isWeb = Platform.OS === 'web';
-  // base URL for the backend API; prefer Expo LAN host if available
+  // base URL for the backend API.
+  // - In deployed web builds, use relative paths (empty string) so `/api/*` proxies to Netlify Functions.
+  // - In local web development when running on localhost, keep the explicit localhost:4200 host.
+  // - On native (Expo) devices, attempt to use the LAN host for the dev server.
   const apiBase = (() => {
+    // Web: use relative paths except when running on localhost (developer machine)
+    if (Platform.OS === 'web') {
+      try {
+        const host = (typeof window !== 'undefined' && window.location && window.location.hostname) || '';
+        if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:4200';
+        return '';
+      } catch (e) {
+        return '';
+      }
+    }
+
+    // Native / Expo: try to compute LAN host from Expo Constants for physical device testing
     try {
-      // attempt to resolve Expo constants to compute LAN host for physical devices
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const Constants = require('expo-constants');
       const host = (Constants?.manifest?.debuggerHost || '').split(':')[0];
@@ -40,6 +54,7 @@ export default function HomeScreen() {
     } catch (e) {
       // ignore and fall back to localhost
     }
+
     return 'http://localhost:4200';
   })();
 
@@ -51,7 +66,7 @@ export default function HomeScreen() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:4200/api/chat", {
+      const res = await fetch(`${apiBase}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic }),
@@ -133,7 +148,7 @@ export default function HomeScreen() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:4200/api/chat', {
+      const res = await fetch(`${apiBase}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
