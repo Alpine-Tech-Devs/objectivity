@@ -316,18 +316,24 @@ export default function HomeScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <LinearGradient
+      colors={['rgba(124,58,237,0.08)', 'rgba(6,182,212,0.08)']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: .1, y: 1 }}
+      style={styles.gradientContainer}
     >
-      <View style={styles.quoteWrap}>
-        <Text style={styles.quote}>
-          Hear both sides. Decide for yourself.
-        </Text>
-          {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
-      </View>
-      <View style={styles.inputContainer}>
-        <View style={styles.inputField}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={styles.quoteWrap}>
+          <Text style={styles.quote}>
+            Hear both sides. Decide for yourself.
+          </Text>
+            {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
+        </View>
+        <View style={styles.inputContainer}>
+          <View style={styles.inputField}>
           <TextInput
             value={value}
             onChangeText={setValue}
@@ -404,11 +410,15 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     justifyContent: "center",
@@ -432,6 +442,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 15,
     fontStyle: "italic",
+    fontWeight: "bold",
     color: "#333",
   },
   resultsContainer: {
@@ -489,15 +500,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.85)',
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.15)',
   },
   submitButton: {
     marginLeft: 8,
