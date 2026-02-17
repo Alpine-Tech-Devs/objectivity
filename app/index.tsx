@@ -338,7 +338,7 @@ export default function HomeScreen() {
             placeholderTextColor="#9CA3AF"
           />
           <LinearGradient
-            colors={['#7C3AED', '#2563EB', '#60A5FA']}
+            colors={['#7C3AED', '#2563EB', '#0891B2', '#06B6D4', '#22D3EE']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.submitButton}
@@ -350,7 +350,7 @@ export default function HomeScreen() {
         </View>
         {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
           <LinearGradient
-            colors={['#ef4444', '#dc2626']}
+            colors={['#f87171', '#ef4444', '#dc2626', '#991b1b']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.clearButton}
