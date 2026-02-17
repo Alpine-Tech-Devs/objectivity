@@ -237,11 +237,14 @@ export default function HomeScreen() {
         >
           <Text style={[styles.claim, styles.gradientText]}>{item.claim || 'Claim'}</Text>
           <Text style={[styles.summary, styles.gradientText]}>{item.summary || ''}</Text>
-          {(item.sources || []).map((s: Source, j: number) => (
-            <TouchableOpacity key={`src-${j}`} onPress={() => s.url && Linking.openURL(s.url)}>
-              <Text style={styles.sourceLink}>{s.title || s.url || 'source'}</Text>
-            </TouchableOpacity>
+          {(item.sources || [])
+            .filter((s) => typeof s.url === "string" && s.url.startsWith("http"))
+            .map((s: Source, j: number) => (
+              <TouchableOpacity key={`src-${j}`} onPress={() => Linking.openURL(s.url!)}>
+                <Text style={styles.sourceLink}>{s.title || s.url}</Text>
+              </TouchableOpacity>
           ))}
+
           <View style={styles.buttonsContainer}>
             <LinearGradient
               colors={side === 'pro' 
@@ -298,11 +301,14 @@ export default function HomeScreen() {
             <Text style={[styles.detailText, styles.detailTextNeutral]}>
               {item.detail.long_summary}
             </Text>
-            {(item.detail.sources || []).map((s: Source, si: number) => (
-              <TouchableOpacity key={`detail-src-${si}`} onPress={() => s.url && Linking.openURL(s.url)}>
-                <Text style={styles.detailSource}>{s.title || s.url}</Text>
-              </TouchableOpacity>
+            {(item.detail.sources || [])
+              .filter((s) => typeof s.url === "string" && s.url.startsWith("http"))
+              .map((s: Source, si: number) => (
+                <TouchableOpacity key={`detail-src-${si}`} onPress={() => Linking.openURL(s.url!)}>
+                  <Text style={styles.detailSource}>{s.title || s.url}</Text>
+                </TouchableOpacity>
             ))}
+
           </LinearGradient>
         )}
 

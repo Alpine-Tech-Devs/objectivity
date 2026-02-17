@@ -1,7 +1,7 @@
-const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
-const dotenv = require('dotenv');
+const express = require("express");
+const axios = require("axios");
+const cors = require("cors");
+const dotenv = require("dotenv");
 
 dotenv.config();
 
@@ -11,544 +11,647 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Normalize and validate URLs before returning to client.
-const axiosValidate = require('axios');
+const axiosValidate = require("axios");
+const { set: cacheSet, get: cacheGet } = require("./lib/cache");
+const { search, getValidLinksOrRetry } = require("./lib/search");
+const { callChatCompletion } = require("./lib/openai");
+
+/** -------------------------
+ * URL normalize + validate
+ * ------------------------*/
 async function normalizeUrl(rawUrl) {
-	if (!rawUrl) return null;
-	try {
-		// unwrap common redirect wrappers (google/bing)
-		const u = new URL(rawUrl);
-		const hostname = (u.hostname || '').toLowerCase();
-		if ((hostname.includes('google.') || hostname.includes('bing.')) && u.searchParams.get('q')) {
-			rawUrl = u.searchParams.get('q');
-		}
-	} catch (e) {
-		// rawUrl might be missing protocol; continue
-	}
-	// ensure protocol
-	if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
-	try {
-		const u = new URL(rawUrl);
-		return u.toString();
-	} catch (e) {
-		return null;
-	}
+  if (!rawUrl) return null;
+  try {
+    const u = new URL(rawUrl);
+    const hostname = (u.hostname || "").toLowerCase();
+    if (
+      (hostname.includes("google.") || hostname.includes("bing.")) &&
+      u.searchParams.get("q")
+    ) {
+      rawUrl = u.searchParams.get("q");
+    }
+  } catch {
+    // rawUrl might be missing protocol; continue
+  }
+
+  if (!/^https?:\/\//i.test(rawUrl)) rawUrl = "https://" + rawUrl;
+
+  try {
+    const u = new URL(rawUrl);
+    return u.toString();
+  } catch {
+    return null;
+  }
 }
 
 async function validateUrl(url) {
-	if (!url) return null;
-	try {
-		const head = await axiosValidate.head(url, { timeout: 3000, maxRedirects: 5, validateStatus: null });
-		if (head.status >= 200 && head.status < 400) return url;
-		// fallback to GET for servers that block HEAD
-		const get = await axiosValidate.get(url, { timeout: 3000, maxRedirects: 5, validateStatus: null });
-		if (get.status >= 200 && get.status < 400) return url;
-		return null;
-	} catch (e) {
-		return null;
-	}
+  if (!url) return null;
+  try {
+    // Prefer GET (many sites block HEAD)
+    const resp = await axiosValidate.get(url, {
+      timeout: 5000,
+      maxRedirects: 5,
+      validateStatus: null,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; ObjectivityBot/1.0)",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+
+    if (resp.status >= 200 && resp.status < 400) return url;
+
+    // fallback to HEAD
+    const head = await axiosValidate.head(url, {
+      timeout: 5000,
+      maxRedirects: 5,
+      validateStatus: null,
+    });
+    if (head.status >= 200 && head.status < 400) return url;
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 async function normalizeAndValidateSourcesForItems(items) {
-	if (!Array.isArray(items)) return items;
-	return Promise.all(items.map(async it => {
-		const sources = Array.isArray(it.sources) ? it.sources : [];
-		const validated = await Promise.all(sources.map(async s => {
-			const title = s && s.title ? s.title : null;
-			const raw = s && s.url ? s.url : null;
-			const norm = await normalizeUrl(raw);
-			if (!norm) return { title, url: null, available: false };
-			const ok = await validateUrl(norm);
-			if (!ok) return { title, url: null, available: false };
-			return { title, url: norm, available: true };
-		}));
-		return { ...it, sources: validated };
-	}));
+  if (!Array.isArray(items)) return items;
+  return Promise.all(
+    items.map(async (it) => {
+      const sources = Array.isArray(it.sources) ? it.sources : [];
+      const validated = await Promise.all(
+        sources.map(async (s) => {
+          const title = s && s.title ? s.title : null;
+          const raw = s && s.url ? s.url : null;
+          const norm = await normalizeUrl(raw);
+          if (!norm) {
+            console.log(`[VALIDATE] normalizeUrl failed for: ${raw}`);
+            return { title, url: null, available: false };
+          }
+          const ok = await validateUrl(norm);
+          if (!ok) {
+            console.log(`[VALIDATE] validateUrl failed for: ${norm}`);
+            return { title, url: null, available: false };
+          }
+          console.log(`[VALIDATE] URL valid: ${norm}`);
+          return { title, url: norm, available: true };
+        })
+      );
+      // keep only valid urls (your UI will show only those)
+      const usable = validated.filter((x) => x.url);
+      return { ...it, sources: usable };
+    })
+  );
 }
 
-const { set: cacheSet, get: cacheGet } = require('./lib/cache');
-const { search } = require('./lib/search');
-const { callChatCompletion } = require('./lib/openai');
+/** -------------------------
+ * Retrieval ID mapping
+ * ------------------------*/
+function buildRetrievals(proResults, conResults, limit = 10) {
+  const pro = (proResults || []).slice(0, limit).map((r, i) => ({
+    id: `pro-${i + 1}`,
+    title: r.title || "Untitled",
+    url: r.url || null,
+    snippet: r.snippet || "",
+  }));
+  const con = (conResults || []).slice(0, limit).map((r, i) => ({
+    id: `con-${i + 1}`,
+    title: r.title || "Untitled",
+    url: r.url || null,
+    snippet: r.snippet || "",
+  }));
+  console.log(`[BUILD_RETRIEVALS] Pro results: ${pro.length}, with URLs: ${pro.filter(p => p.url).length}`);
+  console.log(`[BUILD_RETRIEVALS] Con results: ${con.length}, with URLs: ${con.filter(c => c.url).length}`);
+  pro.slice(0, 3).forEach((p, i) => console.log(`  [PRO-${i+1}] ${p.title} -> ${p.url}`));
+  con.slice(0, 3).forEach((c, i) => console.log(`  [CON-${i+1}] ${c.title} -> ${c.url}`));
+  return { pro, con };
+}
 
-app.post('/api/chat', async (req, res) => {
-	// Two modes supported:
-	// 1) Chat mode: { prompt: string } (legacy)
-	// 2) Topic mode: { topic: string } -> returns { pro: [], con: [] }
+function mapSourceIdsToSources(items, retrievals) {
+  const map = new Map();
+  [...(retrievals?.pro || []), ...(retrievals?.con || [])].forEach((r) => {
+    if (r?.id) map.set(r.id, { title: r.title || null, url: r.url || null });
+  });
 
-	const { prompt, topic, messages, targetClaim, targetSide, history } = req.body || {};
-	const { mode } = req.body || {};
+  return (items || []).map((it) => {
+    const src = Array.isArray(it.sources) ? it.sources : [];
+    const mapped = src
+      .map((s) => (s && s.id ? map.get(s.id) : null))
+      .filter(Boolean);
+    return { ...it, sources: mapped };
+  });
+}
 
-	// Topic mode: return pros/cons structured JSON
-	if (topic && typeof topic === 'string') {
-		try {
-			const normalized = topic.trim().toLowerCase();
-			const cacheKey = `args:${normalized}`;
-			const cached = cacheGet(cacheKey);
-			// If this is a counter-argument request (has targetClaim), do not return the cached
-			// topic result — we need to generate a fresh rebuttal.
-			if (cached && !targetClaim) return res.json({ ok: true, cached: true, ...cached });
+/** -------------------------
+ * Link repair (best-effort - GUARANTEE at least one valid link)
+ * ------------------------*/
+async function ensureValidLinksForItems(topic, items) {
+  if (!Array.isArray(items)) return items;
 
-			// Support counter-argument requests: client may send targetClaim, targetSide, and history
-			if (targetClaim && mode === 'dive') {
-				try {
-					const model = process.env.OPENAI_MODEL || 'gpt-40-mini';
-					const maxTokens = Number(process.env.MAX_TOKENS) || 800;
-					const system = {
-						role: 'system',
-						content: [
-							'You are Objective Debate Assistant. Produce JSON ONLY, matching the response schema exactly.',
-							"Schema: { detail: { claim: string, long_summary: string, sources: [{ title?: string, url?: string }] } }",
-							"Rules: claim ≤ 20 words; long_summary = 2–3 short paragraphs; sources must be from provided retrievals when available; do NOT invent URLs. If no reliable sources, set sources: [] and long_summary to 'No reliable sources found.'",
-							"Return valid JSON only, no surrounding commentary."
-						].join(' ')
-					};
-					const userParts = [];
-					userParts.push(`Topic: ${topic}`);
-					userParts.push(`Target claim: ${targetClaim}`);
-					userParts.push('Produce a detailed explanation of this claim (2-3 short paragraphs), and provide exactly 3 supporting or relevant sources with title and URL. Return JSON only with shape { detail: { claim: string, long_summary: string, sources: [{title,url}] } }');
-					if (history && (history.pro || history.con)) {
-						userParts.push('Conversation history:');
-						(history.pro || []).forEach((p, i) => userParts.push(`Pro ${i + 1}: ${p.claim} — ${p.summary}`));
-						(history.con || []).forEach((c, i) => userParts.push(`Con ${i + 1}: ${c.claim} — ${c.summary}`));
-					}
-					const user = { role: 'user', content: userParts.join('\n') };
+  return Promise.all(
+    items.map(async (it) => {
+      const hasAny = Array.isArray(it.sources) && it.sources.some((s) => s?.url);
+      if (hasAny) {
+        console.log(`[REPAIR] Argument already has valid links: ${it.claim}`);
+        return it;
+      }
 
-					const aiResp = await callChatCompletion({ messages: [system, user], model, max_tokens: maxTokens, temperature: 0.2 });
-					const raw = aiResp;
-					const text = (raw?.choices && raw.choices[0] && raw.choices[0].message && raw.choices[0].message.content) || '';
+      const claim = it.claim || "";
+      console.log(`[REPAIR] Attempting to repair links for: ${claim}`);
+      
+      // Try multiple times with different search queries to find at least one valid link
+      let links = [];
+      const queries = [
+        `${topic} ${claim}`,
+        `${topic} evidence ${claim}`,
+        `${claim} research study`,
+      ];
 
-					function tryParseJsonCandidate(str) {
-						if (!str) return null;
-						const first = str.indexOf('{');
-						if (first === -1) return null;
-						let candidate = str.slice(first).trim();
-						try { return JSON.parse(candidate); } catch (e) {}
-						const m = candidate.match(/\{[\s\S]*\}/);
-						if (m) {
-							try { return JSON.parse(m[0]); } catch (e) {}
-						}
-						return null;
-					}
+      for (const q of queries) {
+        if (links.length > 0) break;
+        console.log(`[REPAIR] Searching: ${q}`);
+        const hits = await getValidLinksOrRetry(topic, claim, 1);
+        if (hits && hits.length > 0) {
+          links = hits;
+          break;
+        }
+      }
 
-					let parsed = tryParseJsonCandidate(text);
-					if (!parsed) {
-						try {
-							const recoverySystem = {
-								role: 'system',
-								content: [
-									'You are a JSON extractor. Given arbitrary text, extract and return ONLY the JSON object embedded in it.',
-									"Ensure the extracted JSON matches schema: { detail: { claim, long_summary, sources } } and return valid parsable JSON only."
-								].join(' ')
-							};
-							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
-							const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
-							const recoveryText = (recoveryResp?.choices && recoveryResp.choices[0] && recoveryResp.choices[0].message && recoveryResp.choices[0].message.content) || '';
-							const recoveryParsed = tryParseJsonCandidate(recoveryText);
+      if (!links || links.length === 0) {
+        console.log(`[REPAIR] No links found after all attempts for: ${claim}`);
+        return { ...it, sources: [] };
+      }
 
-							if (recoveryParsed) {
-								const result = { pro: recoveryParsed.pro || [], con: recoveryParsed.con || [] };
-								cacheSet(cacheKey, result, 60 * 10);
-								return res.json({ ok: true, cached: false, ...result });
-							}
-						} catch (reErr) {
-							console.warn('Recovery attempt failed for dive:', reErr?.message || reErr);
-						}
-					}
+      // validate the repaired links
+      const validated = await Promise.all(
+        links.map(async (s) => {
+          const norm = await normalizeUrl(s.url);
+          if (!norm) {
+            console.log(`[REPAIR] normalizeUrl failed: ${s.url}`);
+            return { title: s.title || null, url: null, available: false };
+          }
+          const ok = await validateUrl(norm);
+          if (!ok) {
+            console.log(`[REPAIR] validateUrl failed: ${norm}`);
+            return { title: s.title || null, url: null, available: false };
+          }
+          console.log(`[REPAIR] Valid link found: ${norm}`);
+          return { title: s.title || null, url: norm, available: true };
+        })
+      );
 
-					if (!parsed) return res.status(502).json({ error: 'Model did not return valid JSON for dive', raw: text });
-					let detail = parsed.detail || parsed;
-					if (detail && Array.isArray(detail.sources)) {
-						// normalize/validate each source
-						detail.sources = await Promise.all(detail.sources.map(async s => {
-							const title = s && s.title ? s.title : null;
-							const norm = await normalizeUrl(s && s.url);
-							if (!norm) return { title, url: null, available: false };
-							const ok = await validateUrl(norm);
-							return ok ? { title, url: norm, available: true } : { title, url: null, available: false };
-						}));
-					}
-					return res.json({ ok: true, detail });
-				} catch (err) {
-					console.error('Dive pipeline error:', err?.response?.data || err.message || err);
-					return res.status(500).json({ error: 'Server error' });
-				}
-			}
-			if (targetClaim && typeof targetClaim === 'string') {
-				try {
-					const model = process.env.OPENAI_MODEL || 'gpt-40-mini';
-					const maxTokens = Number(process.env.MAX_TOKENS) || 800;
+      const usable = validated.filter((x) => x.url);
+      if (usable.length === 0) {
+        console.log(`[REPAIR] All validated links failed for: ${claim}`);
+      }
+      return { ...it, sources: usable.length ? usable : [] };
+    })
+  );
+}
 
-					const system = {
-						role: 'system',
-						content: [
-							'You are Objective Debate Assistant. Produce JSON ONLY, matching the response schema exactly.',
-							"Schema: { pro: [{ claim: string, summary: string, sources: [{ title?: string, url?: string }] }], con: [...] }",
-							"Rules: claim ≤ 20 words; summary = 1–3 short sentences; sources must reference provided retrievals when available; do NOT invent URLs. If unsure, set sources: [] and summary: 'No reliable sources found.'",
-							"Return valid JSON only, no surrounding commentary."
-						].join(' ')
-					};
+/** -------------------------
+ * JSON parsing helper
+ * ------------------------*/
+function tryParseJsonCandidate(str) {
+  if (!str) return null;
+  const first = str.indexOf("{");
+  if (first === -1) return null;
+  let candidate = str.slice(first).trim();
+  try {
+    return JSON.parse(candidate);
+  } catch {}
+  const m = candidate.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      return JSON.parse(m[0]);
+    } catch {}
+  }
+  return null;
+}
 
-					const opposite = targetSide === 'pro' ? 'con' : 'pro';
-					const userParts = [];
-					userParts.push(`Topic: ${topic}`);
-					userParts.push(`Target claim to rebut: ${targetClaim}`);
-					userParts.push(`Generate 1-2 ${opposite} arguments that directly respond to and rebut the target claim. Return only JSON with shape { pro: [...], con: [...] } and include sources (title,url) where possible. If you cannot provide a real URL, set url to null.`);
-					userParts.push('Do not repeat claims that already appear in the conversation history or the target claim. Produce novel rebuttals (different wording and different claims).');
-					if (history && (history.pro || history.con)) {
-						userParts.push('Conversation history:');
-						(history.pro || []).forEach((p, i) => userParts.push(`Pro ${i + 1}: ${p.claim} — ${p.summary}`));
-						(history.con || []).forEach((c, i) => userParts.push(`Con ${i + 1}: ${c.claim} — ${c.summary}`));
-					}
+function modelText(resp) {
+  return (
+    (resp?.choices &&
+      resp.choices[0] &&
+      resp.choices[0].message &&
+      resp.choices[0].message.content) ||
+    ""
+  );
+}
 
-					const user = { role: 'user', content: userParts.join('\n') };
+/** -------------------------
+ * Main route
+ * ------------------------*/
+app.post("/api/chat", async (req, res) => {
+  const { prompt, topic, messages, targetClaim, targetSide, history } =
+    req.body || {};
+  const { mode } = req.body || {};
 
-					// robust parse helper
-					function tryParseJsonCandidate(str) {
-						if (!str) return null;
-						const first = str.indexOf('{');
-						if (first === -1) return null;
-						let candidate = str.slice(first).trim();
-						try { return JSON.parse(candidate); } catch (e) {}
-						const m = candidate.match(/\{[\s\S]*\}/);
-						if (m) {
-							try { return JSON.parse(m[0]); } catch (e) {}
-						}
-						const openBraces = (candidate.match(/\{/g) || []).length;
-						const closeBraces = (candidate.match(/\}/g) || []).length;
-						const openBrackets = (candidate.match(/\[/g) || []).length;
-						const closeBrackets = (candidate.match(/\]/g) || []).length;
-						let needBraces = openBraces - closeBraces;
-						let needBrackets = openBrackets - closeBrackets;
-						if (needBraces < 0) needBraces = 0;
-						if (needBrackets < 0) needBrackets = 0;
-						const fixed = candidate + (']'.repeat(needBrackets)) + ('}'.repeat(needBraces));
-						try { return JSON.parse(fixed); } catch (e) {}
-						return null;
-					}
+  // ---------- Topic mode ----------
+  if (topic && typeof topic === "string") {
+    try {
+      const normalized = topic.trim().toLowerCase();
+      const cacheKey = `args:${normalized}`;
+      const cached = cacheGet(cacheKey);
+      if (cached && !targetClaim && !mode) {
+        return res.json({ ok: true, cached: true, ...cached });
+      }
 
-					function norm(s) { return (s||'').toString().trim().toLowerCase().replace(/[\s\W_]+/g,' '); }
-					const existingClaimsSet = new Set();
-					if (history) {
-						(history.pro || []).forEach(p => existingClaimsSet.add(norm(p.claim)));
-						(history.con || []).forEach(c => existingClaimsSet.add(norm(c.claim)));
-					}
-					existingClaimsSet.add(norm(targetClaim));
+      // ---------- DIVE mode ----------
+      if (targetClaim && mode === "dive") {
+        // Do a fresh search for dive so we can cite real sources (optional but recommended)
+        const [r1, r2] = await Promise.all([
+          search(`${topic} ${targetClaim} evidence`, { limit: 20 }),
+          search(`${topic} ${targetClaim} study report`, { limit: 20 }),
+        ]);
+        const retrievals = buildRetrievals(r1, r2, 10);
 
-					let parsed = null;
-					let parsedOpposite = [];
-					let lastText = '';
+        const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+        const maxTokens = Number(process.env.MAX_TOKENS) || 900;
 
-					// Attempt up to 3 tries with increasing creativity to get novel rebuttals
-					const temps = [0.0, 0.35, 0.7];
-					for (let attempt = 0; attempt < temps.length; attempt++) {
-						const temp = temps[attempt];
-						try {
-							const instructExtra = attempt === 0 ? '' : '\n\nTry to rephrase and produce different claims than earlier responses.';
-							const user = { role: 'user', content: userParts.join('\n') + instructExtra };
-							const aiResp = await callChatCompletion({ messages: [system, user], model, max_tokens: maxTokens, temperature: temp });
-							const raw = aiResp;
-							const text = (raw?.choices && raw.choices[0] && raw.choices[0].message && raw.choices[0].message.content) || '';
-							lastText = text;
-							const candidate = tryParseJsonCandidate(text);
-							if (candidate) {
-								parsed = candidate;
-								const oppItems = (candidate[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
-								if (oppItems && oppItems.length > 0) {
-									parsedOpposite = oppItems;
-									break;
-								}
-							}
-						} catch (e) {
-							console.warn('Attempt', attempt, 'failed:', e?.message || e);
-						}
-					}
+        const system = {
+          role: "system",
+          content: [
+            "You are Objective Debate Assistant. Return VALID JSON ONLY. No markdown. No commentary.",
+            "",
+            'Schema: { "detail": { "claim": string, "long_summary": string, "sources": [{ "id": string }] } }',
+            "",
+            "Rules:",
+            "- claim <= 20 words",
+            "- long_summary = 2–3 short paragraphs",
+            "- SOURCES: cite ONLY by id from provided retrievals; never invent ids; never include URLs",
+            "- If none fit, sources: [] and long_summary must include: 'No reliable sources found.'",
+            "",
+            "STYLE (Defense Attorney Mode):",
+            "- Explain like counsel: element-by-element reasoning, alternative explanations, and preemption of the best counterpoint.",
+          ].join("\n"),
+        };
 
-					// If we didn't get novel items, fall back to any parsed items (deduped)
-					if ((!parsedOpposite || parsedOpposite.length === 0) && parsed) {
-						parsedOpposite = (parsed[opposite] || []).filter(it => !existingClaimsSet.has(norm(it.claim)));
-					}
+        const userParts = [];
+        userParts.push(`Topic: ${topic}`);
+        userParts.push(`Target claim: ${targetClaim}`);
+        userParts.push("Retrievals (use only these ids when citing):");
+        userParts.push(JSON.stringify(retrievals, null, 2));
+        userParts.push(
+          "Produce JSON only in the required schema. Provide 1–2 source ids if possible."
+        );
 
-					if (!parsed && (!parsedOpposite || parsedOpposite.length === 0)) {
-						try {
-							const recoverySystem = {
-								role: 'system',
-								content: 'You are a JSON extractor. Given arbitrary text, extract and return only the JSON object embedded in it. Return valid JSON only.'
-							};
-							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${lastText}` };
-							const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
-							const recoveryText = (recoveryResp?.choices && recoveryResp.choices[0] && recoveryResp.choices[0].message && recoveryResp.choices[0].message.content) || '';
-							const recoveryParsed = tryParseJsonCandidate(recoveryText);
+        const user = { role: "user", content: userParts.join("\n") };
 
-							if (recoveryParsed) {
-								const result = { pro: recoveryParsed.pro || [], con: recoveryParsed.con || [] };
-								return res.json({ ok: true, cached: false, ...result });
-							}
-						} catch (reErr) {
-							console.warn('Recovery attempt failed:', reErr?.message || reErr);
-						}
-						return res.status(502).json({ error: 'Model did not return valid JSON', raw: text });
-					}
+        const aiResp = await callChatCompletion({
+          messages: [system, user],
+          model,
+          max_tokens: maxTokens,
+          temperature: 0.2,
+          // If your model supports it, JSON mode helps:
+          response_format: { type: "json_object" },
+        });
 
-					let result = { pro: parsed.pro || [], con: parsed.con || [] };
-					// Map source IDs to real URLs/titles from retrievals
-					result.pro = mapSourceIdsToSources(result.pro, retrievals);
-					result.con = mapSourceIdsToSources(result.con, retrievals);
-					// Now normalize + validate URLs (your existing pipeline)
-					result.pro = await normalizeAndValidateSourcesForItems(result.pro);
-					result.con = await normalizeAndValidateSourcesForItems(result.con);
-					// Source repair: if any pro/con is missing a valid source, try to repair
-					const missingSources = [...result.pro, ...result.con].some(it => !it.sources || it.sources.filter(s => s.url).length === 0);
-					if (missingSources) {
-						async function repairSourcesForItems(topic, items) {
-							const repaired = [];
-							for (const it of items) {
-								const hasOk = Array.isArray(it.sources) && it.sources.some(s => s.url);
-								if (hasOk) {
-									repaired.push(it);
-									continue;
-								}
-								const q = `${topic} ${it.claim}`;
-								const hits = await search(q, { limit: 4 });
-								// pick 1–2 best
-								const picked = hits.slice(0, 2).map(h => ({ title: h.title, url: h.url || null }));
-								const withSources = { ...it, sources: picked };
-								repaired.push(withSources);
-							}
-							return repaired;
-						}
-						result.pro = await repairSourcesForItems(topic, result.pro);
-						result.con = await repairSourcesForItems(topic, result.con);
-						result.pro = await normalizeAndValidateSourcesForItems(result.pro);
-						result.con = await normalizeAndValidateSourcesForItems(result.con);
-					}
-					return res.json({ ok: true, cached: false, ...result });
-				} catch (err) {
-					console.error('Counter pipeline error:', err?.response?.data || err.message || err);
-					const status = err?.response?.status || 500;
-					return res.status(status).json({ error: err?.response?.data || err.message || 'Server error' });
-				}
-			}
+        const text = modelText(aiResp);
+        let parsed = tryParseJsonCandidate(text);
 
-			const model = process.env.OPENAI_MODEL || 'gpt-40-mini';
-			const maxTokens = Number(process.env.MAX_TOKENS) || 800;
+        if (!parsed) {
+          // recovery extractor for DIVE (correct schema!)
+          const recoverySystem = {
+            role: "system",
+            content:
+              "Extract and return ONLY the JSON object embedded in the text. Return valid JSON only.",
+          };
+          const recoveryUser = {
+            role: "user",
+            content: `Extract JSON from:\n\n${text}`,
+          };
+          const recoveryResp = await callChatCompletion({
+            messages: [recoverySystem, recoveryUser],
+            model,
+            max_tokens: 1200,
+            temperature: 0,
+            response_format: { type: "json_object" },
+          });
+          parsed = tryParseJsonCandidate(modelText(recoveryResp));
+        }
 
-			// Attempt searches (SERPAPI_KEY optional)
-			const proQuery = `${topic} arguments for`;
-			const conQuery = `${topic} arguments against`;
-			const [proResults, conResults] = await Promise.all([
-				search(proQuery, { limit: 6 }),
-				search(conQuery, { limit: 6 }),
-			]);
+        if (!parsed) {
+          return res.status(502).json({ error: "Model did not return valid JSON for dive", raw: text });
+        }
 
-			const system = {
-				role: "system",
-				content: [
-					"You are Objective Debate Assistant.",
-					"Return VALID JSON ONLY. No markdown. No commentary.",
-					"",
-					"OUTPUT SCHEMA (exactly):",
-					'{ "pro": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }], "con": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }] }',
-					"",
-					"RULES:",
-					"- Output exactly 3 pro and 3 con arguments.",
-					"- claim <= 20 words.",
-					"- summary = 1–3 sentences.",
-					"- SOURCES: You may ONLY cite retrieval sources by id from the provided retrieval list. Never invent ids. Never include URLs.",
-					"- Each argument must cite 1–2 source ids if possible. If none fit, sources: [] and include 'No reliable sources found.' in summary.",
-					"",
-					"STYLE (Defense Attorney Mode):",
-					"- Argue each side like counsel zealously advocating that position.",
-					"- Use courtroom logic: burden of proof, key elements, alternative explanations, reasonable doubt.",
-					"- Anticipate the best opposing point and preempt it briefly.",
-					"- Be precise; avoid absolutes unless supported by sources.",
-					"Each summary should read like counsel:",
-					"1) Theory of the case",
-					"2) Supporting authority/evidence (tie to cited sources)",
-					"3) Brief preemption of the strongest counterpoint"
-				].join("\n")
-			};
+        let detail = parsed.detail || parsed;
 
-			// Build retrieval payload (will be attached for the model to cite from)
-			const retrievals = {
-				pro: proResults.map((r, i) => ({
-					id: `pro-${i + 1}`,
-					title: r.title,
-					url: r.url || null,
-					snippet: r.snippet
-				})),
-				con: conResults.map((r, i) => ({
-					id: `con-${i + 1}`,
-					title: r.title,
-					url: r.url || null,
-					snippet: r.snippet
-				})),
-			};
+        // map ids -> urls
+        detail.sources = mapSourceIdsToSources(
+          [{ sources: detail.sources || [] }],
+          retrievals
+        )[0].sources;
 
-			const userParts = [];
-			userParts.push(`Topic: ${topic}`);
-			userParts.push('Retrievals (use only these when citing):');
-			userParts.push(JSON.stringify(retrievals, null, 2));
+        // validate and strip bad urls
+        const detailItems = await normalizeAndValidateSourcesForItems([
+          { ...detail, sources: detail.sources || [] },
+        ]);
+        detail = detailItems[0];
 
-			let user = { role: 'user', content: userParts.join('\n') };
+        // attempt repair if no links
+        if (!detail.sources || detail.sources.length === 0) {
+          const repaired = await ensureValidLinksForItems(topic, [
+            { claim: detail.claim || targetClaim, sources: [] },
+          ]);
+          detail.sources = repaired[0].sources || [];
+        }
 
-			// If no search results were available (no SERPAPI_KEY), fall back to a
-			// direct prompt requesting 3 pro and 3 con arguments. Instruct the model
-			// to set `url` to null if it cannot provide a verifiable link.
-			if ((!proResults || proResults.length === 0) && (!conResults || conResults.length === 0)) {
-				user = {
-					role: 'user',
-					content: [
-						`Topic: ${topic}`,
-						'No retrievals available. Provide exactly 3 Pro arguments and 3 Con arguments for the topic.',
-						"Return only JSON with shape { pro:[{claim,summary,sources:[{title,url}]}], con:[...] }.",
-						"Rules: claim ≤ 20 words; summary = 1–3 short sentences; if you cannot provide a real URL, set url to null; if unsure, set sources: [] and summary: 'No reliable sources found.'"
-					].join(' ')
-				};
-			}
+        return res.json({ ok: true, detail });
+      }
 
-			const aiResp = await callChatCompletion({ messages: [system, user], model, max_tokens: maxTokens, temperature: 0 });
-			const raw = aiResp;
-			const text = (raw?.choices && raw.choices[0] && raw.choices[0].message && raw.choices[0].message.content) || '';
+      // ---------- Counterargument mode ----------
+      if (targetClaim && typeof targetClaim === "string") {
+        const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+        const maxTokens = Number(process.env.MAX_TOKENS) || 900;
 
-			function tryParseJsonCandidate(str) {
-				if (!str) return null;
-				const first = str.indexOf('{');
-				if (first === -1) return null;
-				let candidate = str.slice(first).trim();
-				try { return JSON.parse(candidate); } catch (e) {}
-				const m = candidate.match(/\{[\s\S]*\}/);
-				if (m) {
-					try { return JSON.parse(m[0]); } catch (e) {}
-				}
-				const openBraces = (candidate.match(/\{/g) || []).length;
-				const closeBraces = (candidate.match(/\}/g) || []).length;
-				const openBrackets = (candidate.match(/\[/g) || []).length;
-				const closeBrackets = (candidate.match(/\]/g) || []).length;
-				let needBraces = openBraces - closeBraces;
-				let needBrackets = openBrackets - closeBrackets;
-				if (needBraces < 0) needBraces = 0;
-				if (needBrackets < 0) needBrackets = 0;
-				const fixed = candidate + (']'.repeat(needBrackets)) + ('}'.repeat(needBraces));
-				try { return JSON.parse(fixed); } catch (e) {}
-				return null;
-			}
+        // Build retrievals for counterarguments (fixes your undefined retrievals bug)
+        const opposite = targetSide === "pro" ? "con" : "pro";
+        const [r1, r2] = await Promise.all([
+          search(`${topic} rebuttal ${targetClaim}`, { limit: 20 }),
+          search(`${topic} arguments ${opposite === "pro" ? "for" : "against"}`, {
+            limit: 20,
+          }),
+        ]);
+        const retrievals = buildRetrievals(r1, r2, 10);
 
-			let parsed = tryParseJsonCandidate(text);
+        const system = {
+          role: "system",
+          content: [
+            "You are Objective Debate Assistant. Return VALID JSON ONLY. No markdown. No commentary.",
+            "",
+            'Schema: { "pro": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }], "con": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }] }',
+            "",
+            "Rules:",
+            "- Generate 1–2 rebuttal arguments on the opposite side only; still return both keys pro and con (one will be empty).",
+            "- claim <= 20 words; summary 1–3 sentences.",
+            "- SOURCES: cite ONLY by id from provided retrievals; never invent ids; never include URLs.",
+            "",
+            "STYLE (Defense Attorney Mode):",
+            "- Cross-examine the target claim; identify missing premises, weaker causation, alternative explanations.",
+          ].join("\n"),
+        };
 
-			if (!parsed) {
-				try {
-					const recoverySystem = {
-						role: 'system',
-						content: [
-							'You are a JSON extractor. Given arbitrary text, extract and return ONLY the JSON object embedded in it.',
-							"Ensure the extracted JSON matches schema: { detail: { claim, long_summary, sources } } and return valid parsable JSON only."
-						].join(' ')
-					};
-					const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
-					const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
-					const recoveryText = (recoveryResp?.choices && recoveryResp.choices[0] && recoveryResp.choices[0].message && recoveryResp.choices[0].message.content) || '';
-					const recoveryParsed = tryParseJsonCandidate(recoveryText);
+        const userParts = [];
+        userParts.push(`Topic: ${topic}`);
+        userParts.push(`Target claim to rebut: ${targetClaim}`);
+        userParts.push(`Target side: ${targetSide}`);
+        userParts.push("Retrievals (use only these ids when citing):");
+        userParts.push(JSON.stringify(retrievals, null, 2));
+        if (history && (history.pro || history.con)) {
+          userParts.push("Conversation history (avoid repeating):");
+          (history.pro || []).forEach((p, i) =>
+            userParts.push(`Pro ${i + 1}: ${p.claim} — ${p.summary}`)
+          );
+          (history.con || []).forEach((c, i) =>
+            userParts.push(`Con ${i + 1}: ${c.claim} — ${c.summary}`)
+          );
+        }
 
-					if (recoveryParsed) {
-						const result = { pro: recoveryParsed.pro || [], con: recoveryParsed.con || [] };
-						cacheSet(cacheKey, result, 60 * 10);
-						return res.json({ ok: true, cached: false, ...result });
-					}
-				} catch (reErr) {
-					console.warn('Recovery attempt failed:', reErr?.message || reErr);
-				}
+        userParts.push(
+          `Generate 1–2 ${opposite} rebuttals. Return JSON only. Cite 1–2 retrieval ids per rebuttal if possible.`
+        );
 
-				return res.status(502).json({ error: 'Model did not return valid JSON', raw: text });
-			}
+        const user = { role: "user", content: userParts.join("\n") };
 
-			let result = { pro: parsed.pro || [], con: parsed.con || [] };
-			// Map source IDs to real URLs/titles from retrievals
-			result.pro = mapSourceIdsToSources(result.pro, retrievals);
-			result.con = mapSourceIdsToSources(result.con, retrievals);
-			// Now normalize + validate URLs (your existing pipeline)
-			result.pro = await normalizeAndValidateSourcesForItems(result.pro);
-			result.con = await normalizeAndValidateSourcesForItems(result.con);
-			// Source repair: if any pro/con is missing a valid source, try to repair
-			const missingSources = [...result.pro, ...result.con].some(it => !it.sources || it.sources.filter(s => s.url).length === 0);
-			if (missingSources) {
-				async function repairSourcesForItems(topic, items) {
-					const repaired = [];
-					for (const it of items) {
-						const hasOk = Array.isArray(it.sources) && it.sources.some(s => s.url);
-						if (hasOk) {
-							repaired.push(it);
-							continue;
-						}
-						const q = `${topic} ${it.claim}`;
-						const hits = await search(q, { limit: 4 });
-						// pick 1–2 best
-						const picked = hits.slice(0, 2).map(h => ({ title: h.title, url: h.url || null }));
-						const withSources = { ...it, sources: picked };
-						repaired.push(withSources);
-					}
-					return repaired;
-				}
-				result.pro = await repairSourcesForItems(topic, result.pro);
-				result.con = await repairSourcesForItems(topic, result.con);
-				result.pro = await normalizeAndValidateSourcesForItems(result.pro);
-				result.con = await normalizeAndValidateSourcesForItems(result.con);
-			}
-			return res.json({ ok: true, cached: false, ...result });
-		} catch (err) {
-			console.error('Arguments pipeline error:', err?.response?.data || err.message || err);
-			const status = err?.response?.status || 500;
-			return res.status(status).json({ error: err?.response?.data || err.message || 'Server error' });
-		}
-	}
+        const aiResp = await callChatCompletion({
+          messages: [system, user],
+          model,
+          max_tokens: maxTokens,
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+        });
 
-	// Legacy chat mode: support prompt or messages
-	const textPrompt = prompt || (Array.isArray(messages) ? messages.map(m => m.content).join('\n') : undefined);
-	if (!textPrompt || typeof textPrompt !== 'string') {
-		return res.status(400).json({ error: 'Missing `prompt` or `topic` in request body' });
-	}
+        const text = modelText(aiResp);
+        let parsed = tryParseJsonCandidate(text);
 
-	try {
-		const openaiKey = process.env.OPENAI_API_KEY;
-		if (!openaiKey) {
-			return res.status(500).json({ error: 'Server missing OPENAI_API_KEY' });
-		}
+        if (!parsed) {
+          const recoverySystem = {
+            role: "system",
+            content:
+              "Extract and return ONLY the JSON object embedded in the text. Return valid JSON only.",
+          };
+          const recoveryUser = {
+            role: "user",
+            content: `Extract JSON from:\n\n${text}`,
+          };
+          const recoveryResp = await callChatCompletion({
+            messages: [recoverySystem, recoveryUser],
+            model,
+            max_tokens: 1200,
+            temperature: 0,
+            response_format: { type: "json_object" },
+          });
+          parsed = tryParseJsonCandidate(modelText(recoveryResp));
+        }
 
-		const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-		const maxTokens = Number(process.env.MAX_TOKENS) || 200;
+        if (!parsed) {
+          return res.status(502).json({ error: "Model did not return valid JSON", raw: text });
+        }
 
-		const response = await axios.post(
-			'https://api.openai.com/v1/chat/completions',
-			{
-				model,
-				messages: [
-					{ role: 'user', content: textPrompt }
-				],
-				max_tokens: maxTokens
-			},
-			{
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${openaiKey}`,
-				},
-			}
-		);
+        let result = { pro: parsed.pro || [], con: parsed.con || [] };
 
-		const result = response.data;
-		const text = (result?.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content) || null;
+        // map ids -> urls
+        result.pro = mapSourceIdsToSources(result.pro, retrievals);
+        result.con = mapSourceIdsToSources(result.con, retrievals);
 
-		res.json({ ok: true, model, text, raw: result });
-	} catch (err) {
-		console.error('OpenAI request error:', err?.response?.data || err.message || err);
-		const status = err?.response?.status || 500;
-		const data = err?.response?.data || { message: 'OpenAI request failed' };
-		res.status(status).json({ error: data });
-	}
+        // validate/strip bad urls
+        result.pro = await normalizeAndValidateSourcesForItems(result.pro);
+        result.con = await normalizeAndValidateSourcesForItems(result.con);
+
+        // repair if missing
+        const missing = [...result.pro, ...result.con].some(
+          (it) => !it.sources || it.sources.length === 0
+        );
+        if (missing) {
+          result.pro = await ensureValidLinksForItems(topic, result.pro);
+          result.con = await ensureValidLinksForItems(topic, result.con);
+        }
+
+        return res.json({ ok: true, cached: false, ...result });
+      }
+
+      // ---------- Base topic pros/cons ----------
+      const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+      const maxTokens = Number(process.env.MAX_TOKENS) || 900;
+
+      const proQuery = `${topic} arguments for`;
+      const conQuery = `${topic} arguments against`;
+
+      const [proResults, conResults] = await Promise.all([
+        search(proQuery, { limit: 20 }),
+        search(conQuery, { limit: 20 }),
+      ]);
+
+      const retrievals = buildRetrievals(proResults, conResults, 10);
+
+      const system = {
+        role: "system",
+        content: [
+          "You are Objective Debate Assistant. Return VALID JSON ONLY. No markdown. No commentary.",
+          "",
+          'Schema: { "pro": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }], "con": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }] }',
+          "",
+          "Rules:",
+          "- Output exactly 3 pro and 3 con arguments.",
+          "- claim <= 20 words.",
+          "- summary = 1–3 sentences.",
+          "- SOURCES: cite ONLY by id from provided retrievals; never invent ids; never include URLs.",
+          "- Each argument should cite 1–2 source ids if possible. If none fit, sources: [] and summary includes: 'No reliable sources found.'",
+          "",
+          "STYLE (Defense Attorney Mode):",
+          "- Argue each side like counsel zealously advocating that position.",
+          "- Use burden of proof, elements, alternative explanations, reasonable doubt.",
+          "- Preempt the strongest counterpoint briefly.",
+        ].join("\n"),
+      };
+
+      const userParts = [];
+      userParts.push(`Topic: ${topic}`);
+      userParts.push("Retrievals (use only these ids when citing):");
+      userParts.push(JSON.stringify(retrievals, null, 2));
+      userParts.push(
+        "Return JSON only. Cite 1–2 retrieval ids per argument if possible."
+      );
+
+      let user = { role: "user", content: userParts.join("\n") };
+
+      // If no SERPAPI results, we can still generate arguments but sources will be empty
+      if (
+        (!proResults || proResults.length === 0) &&
+        (!conResults || conResults.length === 0)
+      ) {
+        user = {
+          role: "user",
+          content: [
+            `Topic: ${topic}`,
+            "No retrievals available.",
+            "Provide exactly 3 Pro and 3 Con arguments.",
+            'Return ONLY JSON with shape { "pro":[{claim,summary,sources:[]}], "con":[...] }.',
+            "Do not invent URLs. sources must be [] in this mode.",
+          ].join("\n"),
+        };
+      }
+
+      const aiResp = await callChatCompletion({
+        messages: [system, user],
+        model,
+        max_tokens: maxTokens,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+      });
+
+      const text = modelText(aiResp);
+      let parsed = tryParseJsonCandidate(text);
+
+      if (!parsed) {
+        const recoverySystem = {
+          role: "system",
+          content:
+            "Extract and return ONLY the JSON object embedded in the text. Return valid JSON only.",
+        };
+        const recoveryUser = {
+          role: "user",
+          content: `Extract JSON from:\n\n${text}`,
+        };
+        const recoveryResp = await callChatCompletion({
+          messages: [recoverySystem, recoveryUser],
+          model,
+          max_tokens: 1200,
+          temperature: 0,
+          response_format: { type: "json_object" },
+        });
+        parsed = tryParseJsonCandidate(modelText(recoveryResp));
+      }
+
+      if (!parsed) {
+        return res.status(502).json({ error: "Model did not return valid JSON", raw: text });
+      }
+
+      let result = { pro: parsed.pro || [], con: parsed.con || [] };
+
+      // map ids -> urls
+      result.pro = mapSourceIdsToSources(result.pro, retrievals);
+      result.con = mapSourceIdsToSources(result.con, retrievals);
+
+      // validate/strip bad urls
+      result.pro = await normalizeAndValidateSourcesForItems(result.pro);
+      result.con = await normalizeAndValidateSourcesForItems(result.con);
+
+      // repair missing links if possible
+      const missing = [...result.pro, ...result.con].some(
+        (it) => !it.sources || it.sources.length === 0
+      );
+      if (missing) {
+        result.pro = await ensureValidLinksForItems(topic, result.pro);
+        result.con = await ensureValidLinksForItems(topic, result.con);
+      }
+
+      cacheSet(cacheKey, result, 60 * 10);
+      return res.json({ ok: true, cached: false, ...result });
+    } catch (err) {
+      console.error("Arguments pipeline error:", err?.response?.data || err.message || err);
+      const status = err?.response?.status || 500;
+      return res.status(status).json({ error: err?.response?.data || err.message || "Server error" });
+    }
+  }
+
+  // ---------- Legacy prompt mode ----------
+  const textPrompt =
+    prompt ||
+    (Array.isArray(messages) ? messages.map((m) => m.content).join("\n") : undefined);
+
+  if (!textPrompt || typeof textPrompt !== "string") {
+    return res.status(400).json({ error: "Missing `prompt` or `topic` in request body" });
+  }
+
+  try {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      return res.status(500).json({ error: "Server missing OPENAI_API_KEY" });
+    }
+
+    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const maxTokens = Number(process.env.MAX_TOKENS) || 200;
+
+    const response = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model,
+        messages: [{ role: "user", content: textPrompt }],
+        max_tokens: maxTokens,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiKey}`,
+        },
+      }
+    );
+
+    const result = response.data;
+    const text =
+      (result?.choices &&
+        result.choices[0] &&
+        result.choices[0].message &&
+        result.choices[0].message.content) ||
+      null;
+
+    res.json({ ok: true, model, text, raw: result });
+  } catch (err) {
+    console.error("OpenAI request error:", err?.response?.data || err.message || err);
+    const status = err?.response?.status || 500;
+    const data = err?.response?.data || { message: "OpenAI request failed" };
+    res.status(status).json({ error: data });
+  }
 });
 
 if (require.main === module) {
-	app.listen(port, () => {
-		console.log(`Server listening on http://localhost:${port}`);
-	});
+  // Important for mobile devices on your LAN:
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Server listening on http://0.0.0.0:${port}`);
+  });
 }
 
 module.exports = app;
