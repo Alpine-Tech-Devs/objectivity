@@ -341,6 +341,9 @@ export default function HomeScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.titleWrap}>
+            <Text style={styles.title}>The Objectivity</Text>
+          </View>
           <View style={styles.quoteWrap}>
             <Text style={styles.quote}>
               Hear both sides. Decide for yourself.
@@ -546,6 +549,19 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     marginBottom: 16,
     paddingHorizontal: 8,
+  },
+  titleWrap: {
+    width: "80%",
+    maxWidth: 600,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  title: {
+    textAlign: "center",
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
   },
   quote: {
     textAlign: "center",
