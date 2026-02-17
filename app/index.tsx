@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,23 +12,28 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+
+type Source = { title?: string; url?: string };
+type ArgumentItem = {
+  claim?: string;
+  summary?: string;
+  sources?: Source[];
+  replies?: ArgumentItem[];
+  detail?: Detail;
+};
+type Detail = { claim?: string; long_summary?: string; sources?: Source[] };
 
 export default function HomeScreen() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
-  type Source = { title?: string; url?: string };
-  type ArgumentItem = { claim?: string; summary?: string; sources?: Source[]; replies?: ArgumentItem[]; detail?: Detail };
-  type Detail = { claim?: string; long_summary?: string; sources?: Source[] };
-  // extend ArgumentItem
-  type ArgumentItemWithDetail = ArgumentItem & { detail?: Detail };
-
   const [proArgs, setProArgs] = useState<ArgumentItem[]>([]);
   const [conArgs, setConArgs] = useState<ArgumentItem[]>([]);
   const [topicState, setTopicState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
-  const isWeb = Platform.OS === 'web';
+  const isWeb = Platform.OS === "web";
   // base URL for the backend API.
   // - In deployed web builds, use relative paths (empty string) so `/api/*` proxies to Netlify Functions.
   // - In local web development when running on localhost, keep the explicit localhost:4200 host.
@@ -219,17 +224,22 @@ export default function HomeScreen() {
 
   type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
   function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
+    const gradientColors = ["#7C3AED", "#2563EB", "#60A5FA"] as const;
     return (
       <View style={{ marginTop: 8 }}>
-        <View style={[styles.card, side === 'pro' ? styles.proCard : styles.conCard]}>
-          <Text style={[styles.claim, side === 'pro' ? styles.proClaim : styles.conClaim]}>{item.claim || 'Claim'}</Text>
-          <Text style={[styles.summary, side === 'pro' ? styles.proSummary : styles.conSummary]}>{item.summary || ''}</Text>
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.card, styles.gradientCard]}
+        >
+          <Text style={[styles.claim, styles.gradientText]}>{item.claim || 'Claim'}</Text>
+          <Text style={[styles.summary, styles.gradientText]}>{item.summary || ''}</Text>
           {(item.sources || []).map((s: Source, j: number) => (
             <TouchableOpacity key={`src-${j}`} onPress={() => s.url && Linking.openURL(s.url)}>
-              <Text style={[styles.sourceLink, side === 'pro' ? styles.proSource : styles.conSource]}>{s.title || s.url || 'source'}</Text>
+              <Text style={styles.sourceLink}>{s.title || s.url || 'source'}</Text>
             </TouchableOpacity>
           ))}
-          
           <TouchableOpacity
             style={styles.counterButton}
             onPress={() => {
@@ -240,10 +250,9 @@ export default function HomeScreen() {
           >
             <Text style={styles.counterButtonText}>Counterargument</Text>
           </TouchableOpacity>
-
           {!item.detail && (
             <TouchableOpacity
-              style={[styles.counterButton, { marginLeft: 8, backgroundColor: '#065f46' }]}
+              style={[styles.counterButton, { marginLeft: 8 }]}
               onPress={() => {
                 const claim = item.claim || '';
                 handleDive(side, path, claim, rootSide || side);
@@ -253,29 +262,26 @@ export default function HomeScreen() {
               <Text style={styles.counterButtonText}>Dive in</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </LinearGradient>
 
         {item.detail && (
-          <View style={[styles.detailWrap, side === 'pro' ? styles.detailWrapPro : styles.detailWrapCon]}>
-            <Text style={[styles.detailText, side === 'pro' ? styles.detailTextPro : styles.detailTextCon]}>
+          <View style={[styles.detailWrap, styles.detailWrapNeutral]}>
+            <Text style={[styles.detailText, styles.detailTextNeutral]}>
               {item.detail.long_summary}
             </Text>
             {(item.detail.sources || []).map((s: Source, si: number) => (
               <TouchableOpacity key={`detail-src-${si}`} onPress={() => s.url && Linking.openURL(s.url)}>
-                <Text style={[styles.detailSource, side === 'pro' ? styles.detailSourcePro : styles.detailSourceCon]}>{s.title || s.url}</Text>
+                <Text style={styles.detailSource}>{s.title || s.url}</Text>
               </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {(item.replies || []).map((r: ArgumentItem, ri: number) => {
-          const childSide = side === 'pro' ? 'con' : 'pro';
-          return (
-            <View key={`reply-${ri}`} style={[styles.replyWrap, childSide === 'pro' ? styles.replyWrapPro : styles.replyWrapCon]}>
-              <ArgumentCard item={r} side={childSide} path={path.concat(ri)} rootSide={rootSide} />
-            </View>
-          );
-        })}
+        {(item.replies || []).map((r: ArgumentItem, ri: number) => (
+          <View key={`reply-${ri}`} style={[styles.replyWrap, styles.replyWrapNeutral]}>
+            <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} rootSide={rootSide} />
+          </View>
+        ))}
       </View>
     );
   }
@@ -406,9 +412,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sourceLink: {
-    color: '#2563eb',
+    color: '#fff',
     textDecorationLine: 'underline',
     marginBottom: 4,
+    fontSize: 13,
   },
   inputContainer: {
     width: '80%',
@@ -443,19 +450,24 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     minHeight: 72,
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: 'rgba(255,255,255,0.2)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
+  },
+  gradientCard: {
+    backgroundColor: 'transparent',
+  },
+  gradientText: {
+    color: '#fff',
   },
   counterButton: {
     marginTop: 8,
     alignSelf: 'flex-start',
-    backgroundColor: '#111827',
+    backgroundColor: '#065f46',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
@@ -475,6 +487,9 @@ const styles = StyleSheet.create({
   },
   replyWrapCon: {
     borderLeftColor: 'rgba(255, 218, 185, 0.6)',
+  },
+  replyWrapNeutral: {
+    borderLeftColor: 'rgba(255,255,255,0.3)',
   },
   proCard: {
     backgroundColor: '#7C3AED',
@@ -527,17 +542,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(124,58,237,0.15)',
   },
   detailText: {
-    color: '#fff',
     marginBottom: 8,
     fontSize: 14,
   },
   detailSource: {
-    color: '#93C5FD',
+    color: '#000',
     textDecorationLine: 'underline',
     marginBottom: 6,
+    fontSize: 13,
   },
   detailWrapPro: {
     backgroundColor: 'rgba(124,58,237,0.12)'
@@ -550,6 +565,12 @@ const styles = StyleSheet.create({
   },
   detailTextCon: {
     color: '#071327'
+  },
+  detailWrapNeutral: {
+    backgroundColor: 'rgba(124,58,237,0.15)',
+  },
+  detailTextNeutral: {
+    color: '#000',
   },
   detailSourcePro: {
     color: '#1D4ED8'
