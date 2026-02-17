@@ -224,7 +224,9 @@ export default function HomeScreen() {
 
   type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
   function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
-    const gradientColors = ["#7C3AED", "#2563EB", "#60A5FA"] as const;
+    const gradientColors = side === 'pro' 
+      ? ["#7C3AED", "#2563EB", "#60A5FA"] 
+      : ["#0891B2", "#06B6D4", "#22D3EE"];
     return (
       <View style={{ marginTop: 8 }}>
         <LinearGradient
@@ -240,32 +242,59 @@ export default function HomeScreen() {
               <Text style={styles.sourceLink}>{s.title || s.url || 'source'}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity
-            style={styles.counterButton}
-            onPress={() => {
-              const claim = item.claim || '';
-              handleCounter(side, path, claim, rootSide || side);
-            }}
-            accessibilityRole="button"
-          >
-            <Text style={styles.counterButtonText}>Challenge this point</Text>
-          </TouchableOpacity>
-          {!item.detail && (
-            <TouchableOpacity
-              style={[styles.counterButton, { marginLeft: 8 }]}
-              onPress={() => {
-                const claim = item.claim || '';
-                handleDive(side, path, claim, rootSide || side);
-              }}
-              accessibilityRole="button"
+          <View style={styles.buttonsContainer}>
+            <LinearGradient
+              colors={side === 'pro' 
+                ? ["#6D28D9", "#1E40AF", "#1E3A8A"] 
+                : ["#0D9488", "#0891B2", "#0E7490"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.challengeButton}
             >
-              <Text style={styles.counterButtonText}>Defend this point</Text>
-            </TouchableOpacity>
-          )}
+              <TouchableOpacity
+                style={styles.challengeButtonInner}
+                onPress={() => {
+                  const claim = item.claim || '';
+                  handleCounter(side, path, claim, rootSide || side);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.challengeButtonText}>Challenge this point</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+            {!item.detail && (
+              <LinearGradient
+                colors={side === 'pro' 
+                  ? ["#7C3AED", "#2563EB", "#60A5FA"] 
+                  : ["#0891B2", "#06B6D4", "#22D3EE"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.defendButton}
+              >
+                <TouchableOpacity
+                  style={styles.defendButtonInner}
+                  onPress={() => {
+                    const claim = item.claim || '';
+                    handleDive(side, path, claim, rootSide || side);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.defendButtonText}>Defend this point</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            )}
+          </View>
         </LinearGradient>
 
         {item.detail && (
-          <View style={[styles.detailWrap, styles.detailWrapNeutral]}>
+          <LinearGradient
+            colors={side === 'pro' 
+              ? ["#A78BFA", "#60A5FA", "#93C5FD"]
+              : ["#22D3EE", "#67E8F9", "#A5F3FC"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.detailWrapGradient}
+          >
             <Text style={[styles.detailText, styles.detailTextNeutral]}>
               {item.detail.long_summary}
             </Text>
@@ -274,7 +303,7 @@ export default function HomeScreen() {
                 <Text style={styles.detailSource}>{s.title || s.url}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </LinearGradient>
         )}
 
         {(item.replies || []).map((r: ArgumentItem, ri: number) => (
@@ -517,6 +546,43 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
   },
+  challengeButton: {
+    width: '95%',
+    marginTop: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  challengeButtonInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  challengeButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  buttonsContainer: {
+    marginTop: 8,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+  },
+  defendButton: {
+    width: '95%',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  defendButtonInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  defendButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
   replyWrap: {
     marginLeft: 14,
     borderLeftWidth: 2,
@@ -594,6 +660,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: 'rgba(124,58,237,0.15)',
   },
+  detailWrapGradient: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
   detailText: {
     marginBottom: 8,
     fontSize: 14,
@@ -618,6 +690,12 @@ const styles = StyleSheet.create({
   },
   detailWrapNeutral: {
     backgroundColor: 'rgba(124,58,237,0.15)',
+  },
+  detailWrapProLight: {
+    backgroundColor: 'rgba(124,58,237,0.08)',
+  },
+  detailWrapConLight: {
+    backgroundColor: 'rgba(8,145,178,0.08)',
   },
   detailTextNeutral: {
     color: '#000',
