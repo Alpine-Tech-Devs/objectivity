@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -12,7 +13,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 
 type Source = { title?: string; url?: string };
 type ArgumentItem = {
@@ -307,15 +307,29 @@ export default function HomeScreen() {
           autoFocus
           placeholderTextColor="#9CA3AF"
         />
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} accessibilityRole="button">
-          <Text style={styles.submitButtonText}>Debate</Text>
-        </TouchableOpacity>
+        <LinearGradient
+          colors={['#7C3AED', '#2563EB', '#60A5FA']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.submitButton}
+        >
+          <TouchableOpacity style={styles.submitButtonInner} onPress={handleSubmit} accessibilityRole="button">
+            <Text style={styles.submitButtonText}>Debate</Text>
+          </TouchableOpacity>
+        </LinearGradient>
       </View>
       {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
         <View style={{ width: '80%', maxWidth: 600, alignItems: 'flex-end' }}>
-          <TouchableOpacity style={styles.clearButton} onPress={clearDebate} accessibilityRole="button">
-            <Text style={styles.clearButtonText}>Clear Debate</Text>
-          </TouchableOpacity>
+          <LinearGradient
+            colors={['#ef4444', '#dc2626']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.clearButton}
+          >
+            <TouchableOpacity style={styles.clearButtonInner} onPress={clearDebate} accessibilityRole="button">
+              <Text style={styles.clearButtonText}>Clear Debate</Text>
+            </TouchableOpacity>
+          </LinearGradient>
         </View>
       )}
       {loading && (
@@ -435,11 +449,16 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginLeft: 8,
-    backgroundColor: '#111827',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
     flexShrink: 0,
+  },
+  submitButtonInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   submitButtonText: {
     color: '#fff',
@@ -527,11 +546,16 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   clearButton: {
-    backgroundColor: '#ef4444',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     marginTop: 8,
+  },
+  clearButtonInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   debugText: {
     fontSize: 12,
