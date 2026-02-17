@@ -15,7 +15,7 @@ export default function RootLayout() {
   return (
     <View style={styles.container}>
       <Stack>
-        <Stack.Screen name="index" options={{ title: "The Objectivity" }} />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
       </Stack>
       <Footer />
     </View>
