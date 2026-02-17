@@ -317,7 +317,7 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient
-      colors={['rgba(124,58,237,0.08)', 'rgba(6,182,212,0.08)']}
+      colors={['rgba(124,58,237,0.25)', 'rgba(6,182,212,0.20)']}
       start={{ x: 0, y: 0 }}
       end={{ x: .1, y: 1 }}
       style={styles.gradientContainer}
@@ -326,13 +326,18 @@ export default function HomeScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.quoteWrap}>
-          <Text style={styles.quote}>
-            Hear both sides. Decide for yourself.
-          </Text>
-            {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
-        </View>
-        <View style={styles.inputContainer}>
+        <ScrollView 
+          style={styles.mainScroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.quoteWrap}>
+            <Text style={styles.quote}>
+              Hear both sides. Decide for yourself.
+            </Text>
+              {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
+          </View>
+          <View style={styles.inputContainer}>
           <View style={styles.inputField}>
           <TextInput
             value={value}
@@ -410,6 +415,7 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
+        </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -421,8 +427,16 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
+  },
+  mainScroll: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   input: {
     flex: 1,
