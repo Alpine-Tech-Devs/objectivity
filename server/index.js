@@ -137,14 +137,19 @@ app.post('/api/chat', async (req, res) => {
 								role: 'system',
 								content: [
 									'You are a JSON extractor. Given arbitrary text, extract and return ONLY the JSON object embedded in it.',
-									"Ensure the extracted JSON matches schema: { pro:[...], con:[...] } and return valid JSON only."
+									"Ensure the extracted JSON matches schema: { detail: { claim, long_summary, sources } } and return valid parsable JSON only."
 								].join(' ')
 							};
 							const recoveryUser = { role: 'user', content: `Extract JSON from the following text:\n\n${text}` };
 							const recoveryResp = await callChatCompletion({ messages: [recoverySystem, recoveryUser], model, max_tokens: 1200, temperature: 0 });
 							const recoveryText = (recoveryResp?.choices && recoveryResp.choices[0] && recoveryResp.choices[0].message && recoveryResp.choices[0].message.content) || '';
 							const recoveryParsed = tryParseJsonCandidate(recoveryText);
-							if (recoveryParsed) parsed = recoveryParsed;
+
+							if (recoveryParsed) {
+								const result = { pro: recoveryParsed.pro || [], con: recoveryParsed.con || [] };
+								cacheSet(cacheKey, result, 60 * 10);
+								return res.json({ ok: true, cached: false, ...result });
+							}
 						} catch (reErr) {
 							console.warn('Recovery attempt failed for dive:', reErr?.message || reErr);
 						}
@@ -285,9 +290,37 @@ app.post('/api/chat', async (req, res) => {
 					}
 
 					let result = { pro: parsed.pro || [], con: parsed.con || [] };
-					// normalize and validate sources for returned items
+					// Map source IDs to real URLs/titles from retrievals
+					result.pro = mapSourceIdsToSources(result.pro, retrievals);
+					result.con = mapSourceIdsToSources(result.con, retrievals);
+					// Now normalize + validate URLs (your existing pipeline)
 					result.pro = await normalizeAndValidateSourcesForItems(result.pro);
 					result.con = await normalizeAndValidateSourcesForItems(result.con);
+					// Source repair: if any pro/con is missing a valid source, try to repair
+					const missingSources = [...result.pro, ...result.con].some(it => !it.sources || it.sources.filter(s => s.url).length === 0);
+					if (missingSources) {
+						async function repairSourcesForItems(topic, items) {
+							const repaired = [];
+							for (const it of items) {
+								const hasOk = Array.isArray(it.sources) && it.sources.some(s => s.url);
+								if (hasOk) {
+									repaired.push(it);
+									continue;
+								}
+								const q = `${topic} ${it.claim}`;
+								const hits = await search(q, { limit: 4 });
+								// pick 1–2 best
+								const picked = hits.slice(0, 2).map(h => ({ title: h.title, url: h.url || null }));
+								const withSources = { ...it, sources: picked };
+								repaired.push(withSources);
+							}
+							return repaired;
+						}
+						result.pro = await repairSourcesForItems(topic, result.pro);
+						result.con = await repairSourcesForItems(topic, result.con);
+						result.pro = await normalizeAndValidateSourcesForItems(result.pro);
+						result.con = await normalizeAndValidateSourcesForItems(result.con);
+					}
 					return res.json({ ok: true, cached: false, ...result });
 				} catch (err) {
 					console.error('Counter pipeline error:', err?.response?.data || err.message || err);
@@ -308,19 +341,47 @@ app.post('/api/chat', async (req, res) => {
 			]);
 
 			const system = {
-				role: 'system',
+				role: "system",
 				content: [
-					'You are Objective Debate Assistant. Produce JSON ONLY, matching the response schema exactly.',
-					"Schema: { pro: [{ claim: string, summary: string, sources: [{ title?: string, url?: string }] }], con: [...] }",
-					"Rules: claim ≤ 20 words; summary = 1–3 short sentences; sources must reference provided retrievals when available; do NOT invent URLs. If unsure, set sources: [] and summary: 'No reliable sources found.'",
-					"Return valid JSON only, no surrounding commentary."
-				].join(' ')
+					"You are Objective Debate Assistant.",
+					"Return VALID JSON ONLY. No markdown. No commentary.",
+					"",
+					"OUTPUT SCHEMA (exactly):",
+					'{ "pro": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }], "con": [{ "claim": string, "summary": string, "sources": [{ "id": string }] }] }',
+					"",
+					"RULES:",
+					"- Output exactly 3 pro and 3 con arguments.",
+					"- claim <= 20 words.",
+					"- summary = 1–3 sentences.",
+					"- SOURCES: You may ONLY cite retrieval sources by id from the provided retrieval list. Never invent ids. Never include URLs.",
+					"- Each argument must cite 1–2 source ids if possible. If none fit, sources: [] and include 'No reliable sources found.' in summary.",
+					"",
+					"STYLE (Defense Attorney Mode):",
+					"- Argue each side like counsel zealously advocating that position.",
+					"- Use courtroom logic: burden of proof, key elements, alternative explanations, reasonable doubt.",
+					"- Anticipate the best opposing point and preempt it briefly.",
+					"- Be precise; avoid absolutes unless supported by sources.",
+					"Each summary should read like counsel:",
+					"1) Theory of the case",
+					"2) Supporting authority/evidence (tie to cited sources)",
+					"3) Brief preemption of the strongest counterpoint"
+				].join("\n")
 			};
 
 			// Build retrieval payload (will be attached for the model to cite from)
 			const retrievals = {
-				pro: proResults.map(r => ({ title: r.title, url: r.url || null, snippet: r.snippet })),
-				con: conResults.map(r => ({ title: r.title, url: r.url || null, snippet: r.snippet })),
+				pro: proResults.map((r, i) => ({
+					id: `pro-${i + 1}`,
+					title: r.title,
+					url: r.url || null,
+					snippet: r.snippet
+				})),
+				con: conResults.map((r, i) => ({
+					id: `con-${i + 1}`,
+					title: r.title,
+					url: r.url || null,
+					snippet: r.snippet
+				})),
 			};
 
 			const userParts = [];
@@ -401,10 +462,37 @@ app.post('/api/chat', async (req, res) => {
 			}
 
 			let result = { pro: parsed.pro || [], con: parsed.con || [] };
-			// normalize/validate sources
+			// Map source IDs to real URLs/titles from retrievals
+			result.pro = mapSourceIdsToSources(result.pro, retrievals);
+			result.con = mapSourceIdsToSources(result.con, retrievals);
+			// Now normalize + validate URLs (your existing pipeline)
 			result.pro = await normalizeAndValidateSourcesForItems(result.pro);
 			result.con = await normalizeAndValidateSourcesForItems(result.con);
-			cacheSet(cacheKey, result, 60 * 10);
+			// Source repair: if any pro/con is missing a valid source, try to repair
+			const missingSources = [...result.pro, ...result.con].some(it => !it.sources || it.sources.filter(s => s.url).length === 0);
+			if (missingSources) {
+				async function repairSourcesForItems(topic, items) {
+					const repaired = [];
+					for (const it of items) {
+						const hasOk = Array.isArray(it.sources) && it.sources.some(s => s.url);
+						if (hasOk) {
+							repaired.push(it);
+							continue;
+						}
+						const q = `${topic} ${it.claim}`;
+						const hits = await search(q, { limit: 4 });
+						// pick 1–2 best
+						const picked = hits.slice(0, 2).map(h => ({ title: h.title, url: h.url || null }));
+						const withSources = { ...it, sources: picked };
+						repaired.push(withSources);
+					}
+					return repaired;
+				}
+				result.pro = await repairSourcesForItems(topic, result.pro);
+				result.con = await repairSourcesForItems(topic, result.con);
+				result.pro = await normalizeAndValidateSourcesForItems(result.pro);
+				result.con = await normalizeAndValidateSourcesForItems(result.con);
+			}
 			return res.json({ ok: true, cached: false, ...result });
 		} catch (err) {
 			console.error('Arguments pipeline error:', err?.response?.data || err.message || err);
