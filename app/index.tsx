@@ -322,8 +322,9 @@ export default function HomeScreen() {
     >
       <View style={styles.quoteWrap}>
         <Text style={styles.quote}>
-          "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself."
+          Hear both sides. Decide for yourself.
         </Text>
+          {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
       </View>
       <View style={styles.inputContainer}>
         <View style={styles.inputField}>
