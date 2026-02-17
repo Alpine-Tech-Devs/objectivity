@@ -248,7 +248,7 @@ export default function HomeScreen() {
             }}
             accessibilityRole="button"
           >
-            <Text style={styles.counterButtonText}>Counterargument</Text>
+            <Text style={styles.counterButtonText}>Challenge this point</Text>
           </TouchableOpacity>
           {!item.detail && (
             <TouchableOpacity
@@ -259,7 +259,7 @@ export default function HomeScreen() {
               }}
               accessibilityRole="button"
             >
-              <Text style={styles.counterButtonText}>Dive in</Text>
+              <Text style={styles.counterButtonText}>Defend this point</Text>
             </TouchableOpacity>
           )}
         </LinearGradient>
@@ -297,29 +297,29 @@ export default function HomeScreen() {
         </Text>
       </View>
       <View style={styles.inputContainer}>
-        <TextInput
-          value={value}
-          onChangeText={setValue}
-          onSubmitEditing={handleSubmit}
-          placeholder="Enter a topic to explore both sides"
-          style={styles.input}
-          returnKeyType="done"
-          autoFocus
-          placeholderTextColor="#9CA3AF"
-        />
-        <LinearGradient
-          colors={['#7C3AED', '#2563EB', '#60A5FA']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.submitButton}
-        >
-          <TouchableOpacity style={styles.submitButtonInner} onPress={handleSubmit} accessibilityRole="button">
-            <Text style={styles.submitButtonText}>Debate</Text>
-          </TouchableOpacity>
-        </LinearGradient>
-      </View>
-      {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
-        <View style={{ width: '80%', maxWidth: 600, alignItems: 'flex-end' }}>
+        <View style={styles.inputField}>
+          <TextInput
+            value={value}
+            onChangeText={setValue}
+            onSubmitEditing={handleSubmit}
+            placeholder="Enter a topic to explore both sides"
+            style={styles.input}
+            returnKeyType="done"
+            autoFocus
+            placeholderTextColor="#9CA3AF"
+          />
+          <LinearGradient
+            colors={['#7C3AED', '#2563EB', '#60A5FA']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.submitButton}
+          >
+            <TouchableOpacity style={styles.submitButtonInner} onPress={handleSubmit} accessibilityRole="button">
+              <Text style={styles.submitButtonText}>Start Debate</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+        {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
           <LinearGradient
             colors={['#ef4444', '#dc2626']}
             start={{ x: 0, y: 0 }}
@@ -330,6 +330,10 @@ export default function HomeScreen() {
               <Text style={styles.clearButtonText}>Clear Debate</Text>
             </TouchableOpacity>
           </LinearGradient>
+        )}
+      </View>
+      {false && (
+        <View style={{ width: '80%', maxWidth: 600, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         </View>
       )}
       {loading && (
@@ -432,11 +436,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   inputContainer: {
-    width: '80%',
+    width: '100%',
     maxWidth: 600,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  inputField: {
+    minWidth: 250,
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
     paddingHorizontal: 10,
@@ -549,13 +571,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    marginTop: 8,
+    flexShrink: 0,
   },
   clearButtonInner: {
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  clearButtonText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   debugText: {
     fontSize: 12,
@@ -579,16 +605,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   detailWrapPro: {
-    backgroundColor: 'rgba(124,58,237,0.12)'
+    backgroundColor: 'rgba(124,58,237,0.12)',
   },
   detailTextPro: {
-    color: '#000000'
+    color: '#000000',
   },
   detailWrapCon: {
-    backgroundColor: 'rgba(249,115,22,0.12)'
+    backgroundColor: 'rgba(249,115,22,0.12)',
   },
   detailTextCon: {
-    color: '#071327'
+    color: '#071327',
   },
   detailWrapNeutral: {
     backgroundColor: 'rgba(124,58,237,0.15)',
@@ -597,13 +623,9 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   detailSourcePro: {
-    color: '#1D4ED8'
+    color: '#1D4ED8',
   },
   detailSourceCon: {
-    color: '#1E40AF'
-  },
-  clearButtonText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: '#1E40AF',
   },
 });
