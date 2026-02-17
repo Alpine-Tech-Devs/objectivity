@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,22 +14,26 @@ import {
   View,
 } from "react-native";
 
+type Source = { title?: string; url?: string };
+type ArgumentItem = {
+  claim?: string;
+  summary?: string;
+  sources?: Source[];
+  replies?: ArgumentItem[];
+  detail?: Detail;
+};
+type Detail = { claim?: string; long_summary?: string; sources?: Source[] };
+
 export default function HomeScreen() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
-  type Source = { title?: string; url?: string };
-  type ArgumentItem = { claim?: string; summary?: string; sources?: Source[]; replies?: ArgumentItem[]; detail?: Detail };
-  type Detail = { claim?: string; long_summary?: string; sources?: Source[] };
-  // extend ArgumentItem
-  type ArgumentItemWithDetail = ArgumentItem & { detail?: Detail };
-
   const [proArgs, setProArgs] = useState<ArgumentItem[]>([]);
   const [conArgs, setConArgs] = useState<ArgumentItem[]>([]);
   const [topicState, setTopicState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
-  const isWeb = Platform.OS === 'web';
+  const isWeb = Platform.OS === "web";
   // base URL for the backend API.
   // - In deployed web builds, use relative paths (empty string) so `/api/*` proxies to Netlify Functions.
   // - In local web development when running on localhost, keep the explicit localhost:4200 host.
@@ -219,97 +224,209 @@ export default function HomeScreen() {
 
   type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
   function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
+    const gradientColors = side === 'pro' 
+      ? ["#7C3AED", "#2563EB", "#60A5FA"] 
+      : ["#0891B2", "#06B6D4", "#22D3EE"];
     return (
       <View style={{ marginTop: 8 }}>
-        <View style={[styles.card, side === 'pro' ? styles.proCard : styles.conCard]}>
-          <Text style={[styles.claim, side === 'pro' ? styles.proClaim : styles.conClaim]}>{item.claim || 'Claim'}</Text>
-          <Text style={[styles.summary, side === 'pro' ? styles.proSummary : styles.conSummary]}>{item.summary || ''}</Text>
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.card, styles.gradientCard]}
+        >
+          <Text style={[styles.claim, styles.gradientText]}>{item.claim || 'Claim'}</Text>
+          <Text style={[styles.summary, styles.gradientText]}>{item.summary || ''}</Text>
           {(item.sources || []).map((s: Source, j: number) => (
             <TouchableOpacity key={`src-${j}`} onPress={() => s.url && Linking.openURL(s.url)}>
-              <Text style={[styles.sourceLink, side === 'pro' ? styles.proSource : styles.conSource]}>{s.title || s.url || 'source'}</Text>
+              <Text style={styles.sourceLink}>{s.title || s.url || 'source'}</Text>
             </TouchableOpacity>
           ))}
-          
-          <TouchableOpacity
-            style={styles.counterButton}
-            onPress={() => {
-              const claim = item.claim || '';
-              handleCounter(side, path, claim, rootSide || side);
-            }}
-            accessibilityRole="button"
-          >
-            <Text style={styles.counterButtonText}>Counterargument</Text>
-          </TouchableOpacity>
-
-          {!item.detail && (
-            <TouchableOpacity
-              style={[styles.counterButton, { marginLeft: 8, backgroundColor: '#065f46' }]}
-              onPress={() => {
-                const claim = item.claim || '';
-                handleDive(side, path, claim, rootSide || side);
-              }}
-              accessibilityRole="button"
+          <View style={styles.buttonsContainer}>
+            <LinearGradient
+              colors={side === 'pro' 
+                ? ["#6D28D9", "#1E40AF", "#1E3A8A"] 
+                : ["#0D9488", "#0891B2", "#0E7490"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.challengeButton}
             >
-              <Text style={styles.counterButtonText}>Dive in</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+              <TouchableOpacity
+                style={styles.challengeButtonInner}
+                onPress={() => {
+                  const claim = item.claim || '';
+                  handleCounter(side, path, claim, rootSide || side);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.challengeButtonText}>Challenge this point</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+            {!item.detail && (
+              <LinearGradient
+                colors={side === 'pro' 
+                  ? ["#7C3AED", "#2563EB", "#60A5FA"] 
+                  : ["#0891B2", "#06B6D4", "#22D3EE"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.defendButton}
+              >
+                <TouchableOpacity
+                  style={styles.defendButtonInner}
+                  onPress={() => {
+                    const claim = item.claim || '';
+                    handleDive(side, path, claim, rootSide || side);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.defendButtonText}>Defend this point</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            )}
+          </View>
+        </LinearGradient>
 
         {item.detail && (
-          <View style={[styles.detailWrap, side === 'pro' ? styles.detailWrapPro : styles.detailWrapCon]}>
-            <Text style={[styles.detailText, side === 'pro' ? styles.detailTextPro : styles.detailTextCon]}>
+          <LinearGradient
+            colors={side === 'pro' 
+              ? ["#A78BFA", "#60A5FA", "#93C5FD"]
+              : ["#22D3EE", "#67E8F9", "#A5F3FC"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.detailWrapGradient}
+          >
+            <Text style={[styles.detailText, styles.detailTextNeutral]}>
               {item.detail.long_summary}
             </Text>
             {(item.detail.sources || []).map((s: Source, si: number) => (
               <TouchableOpacity key={`detail-src-${si}`} onPress={() => s.url && Linking.openURL(s.url)}>
-                <Text style={[styles.detailSource, side === 'pro' ? styles.detailSourcePro : styles.detailSourceCon]}>{s.title || s.url}</Text>
+                <Text style={styles.detailSource}>{s.title || s.url}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </LinearGradient>
         )}
 
-        {(item.replies || []).map((r: ArgumentItem, ri: number) => {
-          const childSide = side === 'pro' ? 'con' : 'pro';
-          return (
-            <View key={`reply-${ri}`} style={[styles.replyWrap, childSide === 'pro' ? styles.replyWrapPro : styles.replyWrapCon]}>
-              <ArgumentCard item={r} side={childSide} path={path.concat(ri)} rootSide={rootSide} />
-            </View>
-          );
-        })}
+        {(item.replies || []).map((r: ArgumentItem, ri: number) => (
+          <View key={`reply-${ri}`} style={[styles.replyWrap, styles.replyWrapNeutral]}>
+            <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} rootSide={rootSide} />
+          </View>
+        ))}
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <LinearGradient
+      colors={['rgba(124,58,237,0.25)', 'rgba(6,182,212,0.20)']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: .1, y: 1 }}
+      style={styles.gradientContainer}
     >
-      <View style={styles.quoteWrap}>
-        <Text style={styles.quote}>
-          "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself."
-        </Text>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView 
+          style={styles.mainScroll}
+          contentContainerStyle={
+            proArgs.length === 0 && conArgs.length === 0
+              ? [styles.scrollContent, styles.centeredLanding]
+              : styles.scrollContent
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.quoteWrap}>
+            <Text style={styles.quote}>
+              Hear both sides. Decide for yourself.
+            </Text>
+              {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
+          </View>
+          {proArgs.length === 0 && conArgs.length === 0 && (
+            <View style={styles.trendingSection}>
+              <Text style={styles.trendingTitle}>Trending Debates</Text>
+              <View style={styles.trendingGrid}>
+                {['Should AI replace lawyers?', 'Is remote work better for productivity?', 'Should billionaires exist?'].map((topic, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.trendingCard}
+                    onPress={async () => {
+                      setValue(topic);
+                      setLoading(true);
+                      setError(null);
+                      try {
+                        const res = await fetch(`${apiBase}/api/chat`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ topic }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setError(data?.error || 'Request failed');
+                          setProArgs([]);
+                          setConArgs([]);
+                        } else {
+                          setProArgs(data.pro || []);
+                          setConArgs(data.con || []);
+                          setTopicState(topic);
+                        }
+                      } catch (err) {
+                        setError(String(err));
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    <LinearGradient
+                      colors={["#ffffff", "#f9fafb"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.trendingCardGradient}
+                    >
+                      <Text style={styles.trendingCardText}>{topic}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+          <View style={styles.inputContainer}>
+          <View style={styles.inputField}>
+          <TextInput
+            value={value}
+            onChangeText={setValue}
+            onSubmitEditing={handleSubmit}
+            placeholder="Enter a topic to explore both sides"
+            style={styles.input}
+            returnKeyType="done"
+            autoFocus
+            placeholderTextColor="#9CA3AF"
+          />
+          <LinearGradient
+            colors={['#7C3AED', '#2563EB', '#0891B2', '#06B6D4', '#22D3EE']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.submitButton}
+          >
+            <TouchableOpacity style={styles.submitButtonInner} onPress={handleSubmit} accessibilityRole="button">
+              <Text style={styles.submitButtonText}>Start Debate</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+        {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
+          <LinearGradient
+            colors={['#f87171', '#ef4444', '#dc2626', '#991b1b']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.clearButton}
+          >
+            <TouchableOpacity style={styles.clearButtonInner} onPress={clearDebate} accessibilityRole="button">
+              <Text style={styles.clearButtonText}>Clear Debate</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        )}
       </View>
-      <View style={styles.inputContainer}>
-        <TextInput
-          value={value}
-          onChangeText={setValue}
-          onSubmitEditing={handleSubmit}
-          placeholder="Enter a topic to explore both sides"
-          style={styles.input}
-          returnKeyType="done"
-          autoFocus
-          placeholderTextColor="#9CA3AF"
-        />
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} accessibilityRole="button">
-          <Text style={styles.submitButtonText}>Debate</Text>
-        </TouchableOpacity>
-      </View>
-      {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
-        <View style={{ width: '80%', maxWidth: 600, alignItems: 'flex-end' }}>
-          <TouchableOpacity style={styles.clearButton} onPress={clearDebate} accessibilityRole="button">
-            <Text style={styles.clearButtonText}>Clear Debate</Text>
-          </TouchableOpacity>
+      {false && (
+        <View style={{ width: '80%', maxWidth: 600, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         </View>
       )}
       {loading && (
@@ -350,15 +467,65 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
+  },
+  mainScroll: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  centeredLanding: {
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 0,
+  },
+  trendingSection: {
+    width: '90%',
+    maxWidth: 600,
+    marginBottom: 24,
+  },
+  trendingTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  trendingGrid: {
+    gap: 10,
+  },
+  trendingCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  trendingCardGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trendingCardText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
   },
   input: {
     flex: 1,
@@ -378,6 +545,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 15,
     fontStyle: "italic",
+    fontWeight: "bold",
     color: "#333",
   },
   resultsContainer: {
@@ -406,33 +574,59 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sourceLink: {
-    color: '#2563eb',
+    color: '#fff',
     textDecorationLine: 'underline',
     marginBottom: 4,
+    fontSize: 13,
   },
   inputContainer: {
-    width: '80%',
+    width: '100%',
     maxWidth: 600,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    backgroundColor: '#fff',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  inputField: {
+    minWidth: 250,
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.15)',
   },
   submitButton: {
     marginLeft: 8,
-    backgroundColor: '#111827',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
     flexShrink: 0,
+  },
+  submitButtonInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   submitButtonText: {
     color: '#fff',
@@ -443,24 +637,66 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     minHeight: 72,
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: 'rgba(255,255,255,0.2)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
+  },
+  gradientCard: {
+    backgroundColor: 'transparent',
+  },
+  gradientText: {
+    color: '#fff',
   },
   counterButton: {
     marginTop: 8,
     alignSelf: 'flex-start',
-    backgroundColor: '#111827',
+    backgroundColor: '#065f46',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
   counterButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  challengeButton: {
+    width: '95%',
+    marginTop: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  challengeButtonInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  challengeButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  buttonsContainer: {
+    marginTop: 8,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+  },
+  defendButton: {
+    width: '95%',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  defendButtonInner: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  defendButtonText: {
     color: '#fff',
     fontWeight: '700',
   },
@@ -475,6 +711,9 @@ const styles = StyleSheet.create({
   },
   replyWrapCon: {
     borderLeftColor: 'rgba(255, 218, 185, 0.6)',
+  },
+  replyWrapNeutral: {
+    borderLeftColor: 'rgba(255,255,255,0.3)',
   },
   proCard: {
     backgroundColor: '#7C3AED',
@@ -512,11 +751,20 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   clearButton: {
-    backgroundColor: '#ef4444',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    marginTop: 8,
+    flexShrink: 0,
+  },
+  clearButtonInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  clearButtonText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   debugText: {
     fontSize: 12,
@@ -527,38 +775,52 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(124,58,237,0.15)',
+  },
+  detailWrapGradient: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   detailText: {
-    color: '#fff',
     marginBottom: 8,
     fontSize: 14,
   },
   detailSource: {
-    color: '#93C5FD',
+    color: '#000',
     textDecorationLine: 'underline',
     marginBottom: 6,
+    fontSize: 13,
   },
   detailWrapPro: {
-    backgroundColor: 'rgba(124,58,237,0.12)'
+    backgroundColor: 'rgba(124,58,237,0.12)',
   },
   detailTextPro: {
-    color: '#000000'
+    color: '#000000',
   },
   detailWrapCon: {
-    backgroundColor: 'rgba(249,115,22,0.12)'
+    backgroundColor: 'rgba(249,115,22,0.12)',
   },
   detailTextCon: {
-    color: '#071327'
+    color: '#071327',
+  },
+  detailWrapNeutral: {
+    backgroundColor: 'rgba(124,58,237,0.15)',
+  },
+  detailWrapProLight: {
+    backgroundColor: 'rgba(124,58,237,0.08)',
+  },
+  detailWrapConLight: {
+    backgroundColor: 'rgba(8,145,178,0.08)',
+  },
+  detailTextNeutral: {
+    color: '#000',
   },
   detailSourcePro: {
-    color: '#1D4ED8'
+    color: '#1D4ED8',
   },
   detailSourceCon: {
-    color: '#1E40AF'
-  },
-  clearButtonText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: '#1E40AF',
   },
 });
