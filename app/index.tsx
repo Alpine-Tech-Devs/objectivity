@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   trendingTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
     marginBottom: 12,
     textAlign: 'center',
   },
