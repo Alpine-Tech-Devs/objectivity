@@ -225,8 +225,8 @@ export default function HomeScreen() {
   type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
   function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
     const gradientColors = side === 'pro' 
-      ? ["#7C3AED", "#2563EB", "#60A5FA"] 
-      : ["#0891B2", "#06B6D4", "#22D3EE"];
+      ? ["#7C3AED", "#2563EB", "#60A5FA"] as const
+      : ["#0891B2", "#06B6D4", "#22D3EE"] as const;
     return (
       <View style={{ marginTop: 8 }}>
         <LinearGradient
@@ -292,8 +292,8 @@ export default function HomeScreen() {
         {item.detail && (
           <LinearGradient
             colors={side === 'pro' 
-              ? ["#A78BFA", "#60A5FA", "#93C5FD"]
-              : ["#22D3EE", "#67E8F9", "#A5F3FC"]}
+              ? ["#6D28D9", "#1E40AF"]
+              : ["#0D9488", "#0E7490"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.detailWrapGradient}
@@ -323,7 +323,7 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient
-      colors={['rgba(124,58,237,0.25)', 'rgba(6,182,212,0.20)']}
+      colors={['#111827', '#1f2937']}
       start={{ x: 0, y: 0 }}
       end={{ x: .1, y: 1 }}
       style={styles.gradientContainer}
@@ -350,54 +350,6 @@ export default function HomeScreen() {
             </Text>
               {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
           </View>
-          {proArgs.length === 0 && conArgs.length === 0 && (
-            <View style={styles.trendingSection}>
-              <Text style={styles.trendingTitle}>Trending Debates</Text>
-              <View style={styles.trendingGrid}>
-                {['Should AI replace lawyers?', 'Is remote work better for productivity?', 'Should billionaires exist?'].map((topic, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.trendingCard}
-                    onPress={async () => {
-                      setValue(topic);
-                      setLoading(true);
-                      setError(null);
-                      try {
-                        const res = await fetch(`${apiBase}/api/chat`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ topic }),
-                        });
-                        const data = await res.json();
-                        if (!res.ok) {
-                          setError(data?.error || 'Request failed');
-                          setProArgs([]);
-                          setConArgs([]);
-                        } else {
-                          setProArgs(data.pro || []);
-                          setConArgs(data.con || []);
-                          setTopicState(topic);
-                        }
-                      } catch (err) {
-                        setError(String(err));
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    <LinearGradient
-                      colors={["#ffffff", "#f9fafb"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.trendingCardGradient}
-                    >
-                      <Text style={styles.trendingCardText}>{topic}</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
           <View style={styles.inputContainer}>
           <View style={styles.inputField}>
           <TextInput
@@ -423,7 +375,7 @@ export default function HomeScreen() {
         </View>
         {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
           <LinearGradient
-            colors={['#f87171', '#ef4444', '#dc2626', '#991b1b']}
+            colors={['#6b7280', '#4b5563']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.clearButton}
@@ -434,6 +386,54 @@ export default function HomeScreen() {
           </LinearGradient>
         )}
       </View>
+      {proArgs.length === 0 && conArgs.length === 0 && (
+        <View style={styles.trendingSection}>
+          <Text style={styles.trendingTitle}>Trending Debates</Text>
+          <View style={styles.trendingGrid}>
+            {['Will AI replace lawyers?', 'Is remote work better for productivity?', 'Should billionaires exist?'].map((topic, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.trendingCard}
+                onPress={async () => {
+                  setValue(topic);
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    const res = await fetch(`${apiBase}/api/chat`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ topic }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setError(data?.error || 'Request failed');
+                      setProArgs([]);
+                      setConArgs([]);
+                    } else {
+                      setProArgs(data.pro || []);
+                      setConArgs(data.con || []);
+                      setTopicState(topic);
+                    }
+                  } catch (err) {
+                    setError(String(err));
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                <LinearGradient
+                  colors={["#27354a", "#1f2937"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.trendingCardGradient}
+                >
+                  <Text style={styles.trendingCardText}>{topic}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
       {false && (
         <View style={{ width: '80%', maxWidth: 600, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         </View>
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   trendingTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -529,11 +529,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#27354a',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   trendingCardText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#fff',
     textAlign: 'center',
   },
   input: {
@@ -543,6 +546,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     fontSize: 16,
+    color: '#fff',
   },
   quoteWrap: {
     width: "80%",
@@ -560,15 +564,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 28,
     fontWeight: "bold",
-    color: "#333",
+    color: "#fff",
     marginBottom: 8,
   },
   quote: {
     textAlign: "center",
     fontSize: 15,
-    fontStyle: "italic",
     fontWeight: "bold",
-    color: "#333",
+    color: "#fff",
   },
   resultsContainer: {
     flexDirection: "row",
@@ -625,7 +628,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#1f2937',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -635,7 +638,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.15)',
+    borderColor: 'rgba(124,58,237,0.3)',
   },
   submitButton: {
     marginLeft: 8,
@@ -810,7 +813,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   detailSource: {
-    color: '#000',
+    color: '#fff',
     textDecorationLine: 'underline',
     marginBottom: 6,
     fontSize: 13,
@@ -837,7 +840,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(8,145,178,0.08)',
   },
   detailTextNeutral: {
-    color: '#000',
+    color: '#fff',
   },
   detailSourcePro: {
     color: '#1D4ED8',
