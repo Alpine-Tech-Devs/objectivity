@@ -225,8 +225,8 @@ export default function HomeScreen() {
   type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
   function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
     const gradientColors = side === 'pro' 
-      ? ["#7C3AED", "#2563EB", "#60A5FA"] 
-      : ["#0891B2", "#06B6D4", "#22D3EE"];
+      ? ["#7C3AED", "#2563EB", "#60A5FA"] as const
+      : ["#0891B2", "#06B6D4", "#22D3EE"] as const;
     return (
       <View style={{ marginTop: 8 }}>
         <LinearGradient
@@ -375,7 +375,7 @@ export default function HomeScreen() {
         </View>
         {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
           <LinearGradient
-            colors={['#f87171', '#ef4444', '#dc2626', '#991b1b']}
+            colors={['#6b7280', '#4b5563']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.clearButton}
@@ -422,7 +422,7 @@ export default function HomeScreen() {
                 }}
               >
                 <LinearGradient
-                  colors={["#ffffff", "#f9fafb"]}
+                  colors={["#27354a", "#1f2937"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.trendingCardGradient}
@@ -529,11 +529,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#27354a',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   trendingCardText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#fff',
     textAlign: 'center',
   },
   input: {
@@ -543,6 +546,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     fontSize: 16,
+    color: '#fff',
   },
   quoteWrap: {
     width: "80%",
@@ -624,7 +628,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#1f2937',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -634,7 +638,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.15)',
+    borderColor: 'rgba(124,58,237,0.3)',
   },
   submitButton: {
     marginLeft: 8,
