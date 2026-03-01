@@ -390,7 +390,7 @@ export default function HomeScreen() {
         <View style={styles.trendingSection}>
           <Text style={styles.trendingTitle}>Trending Debates</Text>
           <View style={styles.trendingGrid}>
-            {['Will AI replace lawyers?', 'Is remote work better for productivity?', 'Should billionaires exist?'].map((topic, index) => (
+            {['Will AI replace lawyers?', 'My employer should let me work remotely', 'Should billionaires exist?'].map((topic, index) => (
               <TouchableOpacity
                 key={index}
                 style={styles.trendingCard}
@@ -587,6 +587,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 8,
+    color: '#fff',
   },
   columnScroll: {
     maxHeight: 300,
