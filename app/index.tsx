@@ -292,8 +292,8 @@ export default function HomeScreen() {
         {item.detail && (
           <LinearGradient
             colors={side === 'pro' 
-              ? ["#A78BFA", "#60A5FA", "#93C5FD"]
-              : ["#22D3EE", "#67E8F9", "#A5F3FC"]}
+              ? ["#6D28D9", "#1E40AF"]
+              : ["#0D9488", "#0E7490"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.detailWrapGradient}
@@ -560,14 +560,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 28,
     fontWeight: "bold",
-    color: "#333",
+    color: "#fff",
     marginBottom: 8,
   },
   quote: {
     textAlign: "center",
     fontSize: 15,
     fontWeight: "bold",
-    color: "#333",
+    color: "#fff",
   },
   resultsContainer: {
     flexDirection: "row",
