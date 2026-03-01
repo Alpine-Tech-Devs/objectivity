@@ -350,54 +350,6 @@ export default function HomeScreen() {
             </Text>
               {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
           </View>
-          {proArgs.length === 0 && conArgs.length === 0 && (
-            <View style={styles.trendingSection}>
-              <Text style={styles.trendingTitle}>Trending Debates</Text>
-              <View style={styles.trendingGrid}>
-                {['Should AI replace lawyers?', 'Is remote work better for productivity?', 'Should billionaires exist?'].map((topic, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.trendingCard}
-                    onPress={async () => {
-                      setValue(topic);
-                      setLoading(true);
-                      setError(null);
-                      try {
-                        const res = await fetch(`${apiBase}/api/chat`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ topic }),
-                        });
-                        const data = await res.json();
-                        if (!res.ok) {
-                          setError(data?.error || 'Request failed');
-                          setProArgs([]);
-                          setConArgs([]);
-                        } else {
-                          setProArgs(data.pro || []);
-                          setConArgs(data.con || []);
-                          setTopicState(topic);
-                        }
-                      } catch (err) {
-                        setError(String(err));
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    <LinearGradient
-                      colors={["#ffffff", "#f9fafb"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.trendingCardGradient}
-                    >
-                      <Text style={styles.trendingCardText}>{topic}</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
           <View style={styles.inputContainer}>
           <View style={styles.inputField}>
           <TextInput
@@ -434,6 +386,54 @@ export default function HomeScreen() {
           </LinearGradient>
         )}
       </View>
+      {proArgs.length === 0 && conArgs.length === 0 && (
+        <View style={styles.trendingSection}>
+          <Text style={styles.trendingTitle}>Trending Debates</Text>
+          <View style={styles.trendingGrid}>
+            {['Will AI replace lawyers?', 'Is remote work better for productivity?', 'Should billionaires exist?'].map((topic, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.trendingCard}
+                onPress={async () => {
+                  setValue(topic);
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    const res = await fetch(`${apiBase}/api/chat`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ topic }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setError(data?.error || 'Request failed');
+                      setProArgs([]);
+                      setConArgs([]);
+                    } else {
+                      setProArgs(data.pro || []);
+                      setConArgs(data.con || []);
+                      setTopicState(topic);
+                    }
+                  } catch (err) {
+                    setError(String(err));
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                <LinearGradient
+                  colors={["#ffffff", "#f9fafb"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.trendingCardGradient}
+                >
+                  <Text style={styles.trendingCardText}>{topic}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
       {false && (
         <View style={{ width: '80%', maxWidth: 600, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         </View>
@@ -566,7 +566,6 @@ const styles = StyleSheet.create({
   quote: {
     textAlign: "center",
     fontSize: 15,
-    fontStyle: "italic",
     fontWeight: "bold",
     color: "#333",
   },
@@ -810,7 +809,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   detailSource: {
-    color: '#000',
+    color: '#fff',
     textDecorationLine: 'underline',
     marginBottom: 6,
     fontSize: 13,
@@ -837,7 +836,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(8,145,178,0.08)',
   },
   detailTextNeutral: {
-    color: '#000',
+    color: '#fff',
   },
   detailSourcePro: {
     color: '#1D4ED8',
