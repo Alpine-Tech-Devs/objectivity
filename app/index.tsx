@@ -323,7 +323,7 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient
-      colors={['rgba(124,58,237,0.25)', 'rgba(6,182,212,0.20)']}
+      colors={['#111827', '#1f2937']}
       start={{ x: 0, y: 0 }}
       end={{ x: .1, y: 1 }}
       style={styles.gradientContainer}
