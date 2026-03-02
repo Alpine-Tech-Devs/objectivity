@@ -34,18 +34,18 @@ export default function HomeScreen() {
   const [hideInputOnMobile, setHideInputOnMobile] = useState(false);
   const [loadingButtonPath, setLoadingButtonPath] = useState<string | null>(null);
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
-  const [threadViewPath, setThreadViewPath] = useState<{ side: 'pro' | 'con', path: number[] } | null>(null);
+  const [threadViewPath, setThreadViewPath] = useState<{ side: 'pro' | 'con', path: number[], rootSide: 'pro' | 'con' } | null>(null);
   
-  const openThreadView = (side: 'pro' | 'con', path: number[]) => {
-    setThreadViewPath({ side, path });
+  const openThreadView = (side: 'pro' | 'con', path: number[], rootSide?: 'pro' | 'con') => {
+    setThreadViewPath({ side, path, rootSide: rootSide || side });
   };
   
   const closeThreadView = () => {
     setThreadViewPath(null);
   };
   
-  const navigateThreadPath = (side: 'pro' | 'con', path: number[]) => {
-    setThreadViewPath({ side, path });
+  const navigateThreadPath = (side: 'pro' | 'con', path: number[], rootSide?: 'pro' | 'con') => {
+    setThreadViewPath({ side, path, rootSide: rootSide || side });
   };
   
   const getCollapseKey = (side: 'pro' | 'con', path: number[]) => {
@@ -221,30 +221,34 @@ export default function HomeScreen() {
 
       const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])) as ArgumentItem[];
       
-      // Workaround: if we got empty results but the other side has data, use that
-      let finalGenerated = generated;
-      if ((!generated || generated.length === 0) && ((side === 'pro' && data.pro && data.pro.length > 0) || (side === 'con' && data.con && data.con.length > 0))) {
-        finalGenerated = (side === 'pro' ? data.pro : data.con) as ArgumentItem[];
-      }
-      
-      if (!finalGenerated || finalGenerated.length === 0) {
+      if (!generated || generated.length === 0) {
+        setError('No counterarguments generated. Please try again.');
         return;
       }
 
-      console.log('Generated items:', finalGenerated);
-      console.log('Path:', path, 'Side:', side);
+      console.log('Generated items:', generated);
+      console.log('Path:', path, 'Side:', side, 'RootSide:', rootSide);
 
-      // Insert generated replies into the array that owns the targeted item (rootSide)
+      // Auto-expand the replies to show the new items
+      const collapseKey = getCollapseKey(side, path);
+      setCollapsedPaths(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(collapseKey);  // Expand this thread
+        return newSet;
+      });
+
+      // Insert into the array that owns this argument structure based on rootSide
+      // Nested arguments are stored in the array they belong to (determined by rootSide)
       const targetRoot = rootSide || side;
       if (targetRoot === 'pro') {
         setProArgs(prev => {
-          const updated = updateNestedInsert(prev, path, finalGenerated);
+          const updated = updateNestedInsert(prev, path, generated);
           console.log('Updated Pro args:', updated);
           return updated;
         });
       } else {
         setConArgs(prev => {
-          const updated = updateNestedInsert(prev, path, finalGenerated);
+          const updated = updateNestedInsert(prev, path, generated);
           console.log('Updated Con args:', updated);
           return updated;
         });
@@ -277,7 +281,7 @@ export default function HomeScreen() {
       }
       const detail = data.detail as Detail | undefined;
       if (!detail) return;
-      // attach detail to the targeted item in the root array
+      // attach detail to the targeted item in the array it belongs to (determined by rootSide)
       const targetRoot = rootSide || side;
       if (targetRoot === 'pro') {
         setProArgs(prev => updateNestedSetDetail(prev, path, detail));
@@ -292,11 +296,11 @@ export default function HomeScreen() {
     }
   };
 
-  type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con'; isThreadView?: boolean };
+  type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con'; isThreadView?: boolean; applyIndentation?: boolean };
   
-  const MAX_DEPTH_LIMIT = 2; // Only show replies up to 2 levels deep in main view
+  const MAX_DEPTH_LIMIT = 10; // Only show replies up to 10 levels deep in main view
   
-  function ArgumentCard({ item, side, path = [], rootSide, isThreadView = false }: ArgumentCardProps) {
+  function ArgumentCard({ item, side, path = [], rootSide, isThreadView = false, applyIndentation = true }: ArgumentCardProps) {
     const gradientColors = side === 'pro' 
       ? ["#7C3AED", "#2563EB", "#60A5FA"] as const
       : ["#0891B2", "#06B6D4", "#22D3EE"] as const;
@@ -361,9 +365,9 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </LinearGradient>
             )}
-            {path.length > 0 && (
+            {path.length > 0 && !isThreadView && (
               <TouchableOpacity
-                onPress={() => openThreadView(side, path)}
+                onPress={() => openThreadView(side, path, rootSide)}
                 style={{
                   marginTop: 8,
                   paddingHorizontal: 10,
@@ -405,14 +409,14 @@ export default function HomeScreen() {
         )}
         
         {(item.replies && item.replies.length > 0) && (() => {
-          // If at depth limit in main view (not in thread view), show View Thread button instead of replies
+          // If AT depth limit in main view (not in thread view), show button to continue in thread view
           if (path.length >= MAX_DEPTH_LIMIT && !isThreadView) {
             return (
               <TouchableOpacity
-                onPress={() => openThreadView(side, path)}
+                onPress={() => openThreadView(side, path, rootSide)}
                 style={{
                   marginTop: 12,
-                  marginLeft: 16,
+                  marginLeft: applyIndentation ? 16 : 0,
                   paddingHorizontal: 12,
                   paddingVertical: 8,
                   backgroundColor: 'rgba(124,58,237,0.2)',
@@ -423,7 +427,7 @@ export default function HomeScreen() {
                 }}
               >
                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
-                  {item.replies.length} {item.replies.length === 1 ? 'reply' : 'replies'} → View thread
+                  📖 View full thread to continue
                 </Text>
               </TouchableOpacity>
             );
@@ -442,7 +446,7 @@ export default function HomeScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   marginTop: 12,
-                  marginLeft: 16,
+                  marginLeft: applyIndentation ? 16 : 0,
                   paddingVertical: 8,
                   paddingHorizontal: 10,
                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -461,29 +465,31 @@ export default function HomeScreen() {
               </TouchableOpacity>
               
               {!isCollapsed && (
-                <View style={{ marginTop: 8, borderLeftWidth: 2, borderLeftColor: 'rgba(255, 255, 255, 0.1)', marginLeft: 8 }}>
+                <View style={{ marginTop: 8, borderLeftWidth: applyIndentation ? 2 : 0, borderLeftColor: 'rgba(255, 255, 255, 0.1)', marginLeft: applyIndentation ? 8 : 0 }}>
                   {item.replies.map((r: ArgumentItem, ri: number) => {
                     const replyKey = `reply-${side}-${path.join('-')}-${ri}`;
                     const nextSide = side === 'pro' ? 'con' : 'pro';
                     const isDifferentSide = nextSide !== side;
                     
                     return (
-                      <View key={replyKey} style={{ marginLeft: 16, marginTop: 8, position: 'relative' }}>
-                        {/* Timeline dot indicator */}
-                        <View
-                          style={{
-                            position: 'absolute',
-                            left: -26,
-                            top: 24,
-                            width: 10,
-                            height: 10,
-                            borderRadius: 5,
-                            backgroundColor: nextSide === 'pro' ? '#7C3AED' : '#0891B2',
-                            borderWidth: 2,
-                            borderColor: '#111827',
-                          }}
-                        />
-                        <ArgumentCard item={r} side={nextSide} path={path.concat(ri)} rootSide={rootSide} isThreadView={isThreadView} />
+                      <View key={replyKey} style={{ marginLeft: applyIndentation ? 16 : 0, marginTop: 8, position: 'relative' }}>
+                        {applyIndentation && (
+                          /* Timeline dot indicator */
+                          <View
+                            style={{
+                              position: 'absolute',
+                              left: -26,
+                              top: 24,
+                              width: 10,
+                              height: 10,
+                              borderRadius: 5,
+                              backgroundColor: nextSide === 'pro' ? '#7C3AED' : '#0891B2',
+                              borderWidth: 2,
+                              borderColor: '#111827',
+                            }}
+                          />
+                        )}
+                        <ArgumentCard item={r} side={nextSide} path={path.concat(ri)} rootSide={rootSide} isThreadView={isThreadView} applyIndentation={applyIndentation} />
                       </View>
                     );
                   })}
@@ -1119,15 +1125,16 @@ export default function HomeScreen() {
             contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
           >
             {(() => {
-              const threadArg = getArgumentAtPath(threadViewPath.side, threadViewPath.path);
+              const threadArg = getArgumentAtPath(threadViewPath.rootSide, threadViewPath.path);
               return threadArg ? (
                 <View style={styles.threadViewContent}>
                   <ArgumentCard 
                     item={threadArg} 
                     side={threadViewPath.side} 
                     path={threadViewPath.path}
-                    rootSide={threadViewPath.side}
+                    rootSide={threadViewPath.rootSide}
                     isThreadView={true}
+                    applyIndentation={false}
                   />
                 </View>
               ) : (
