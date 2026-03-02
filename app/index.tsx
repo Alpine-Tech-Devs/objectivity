@@ -34,6 +34,8 @@ export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
   const isWeb = Platform.OS === "web";
+  const isSmallScreen = width < 400;
+  const isLandscape = height < width;
   // base URL for the backend API.
   // - In deployed web builds, use relative paths (empty string) so `/api/*` proxies to Netlify Functions.
   // - In local web development when running on localhost, keep the explicit localhost:4200 host.
@@ -321,6 +323,382 @@ export default function HomeScreen() {
     );
   }
 
+  const styles = StyleSheet.create({
+    gradientContainer: {
+      flex: 1,
+    },
+    container: {
+      flex: 1,
+      justifyContent: "flex-start",
+      alignItems: "center",
+    },
+    mainScroll: {
+      flex: 1,
+      width: '100%',
+    },
+    scrollContent: {
+      alignItems: 'center',
+      paddingVertical: isWeb ? 12 : (isLandscape ? 4 : (isSmallScreen ? 8 : 12)),
+    },
+    centeredLanding: {
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 0,
+    },
+    trendingSection: {
+      width: '90%',
+      maxWidth: 600,
+      marginBottom: isLandscape ? 8 : 12,
+    },
+    trendingTitle: {
+      fontSize: isWeb || !isSmallScreen ? 18 : 14,
+      fontWeight: 'bold',
+      color: '#fff',
+      marginBottom: isWeb ? 10 : (isLandscape ? 6 : 10),
+      textAlign: 'center',
+    },
+    trendingGrid: {
+      gap: isWeb || !isSmallScreen ? 10 : 6,
+    },
+    trendingCard: {
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    trendingCardGradient: {
+      paddingVertical: isWeb || !isSmallScreen ? 16 : 12,
+      paddingHorizontal: isWeb || !isSmallScreen ? 12 : 8,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#27354a',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+    },
+    trendingCardText: {
+      fontSize: isWeb || !isSmallScreen ? 14 : 12,
+      fontWeight: '600',
+      color: '#fff',
+      textAlign: 'center',
+    },
+    input: {
+      flex: 1,
+      minWidth: 100,
+      padding: isWeb || !isSmallScreen ? 12 : 8,
+      borderWidth: 1,
+      borderRadius: 8,
+      fontSize: isWeb || !isSmallScreen ? 16 : 14,
+      color: '#fff',
+    },
+    quoteWrap: {
+      width: "80%",
+      maxWidth: 600,
+      marginBottom: isWeb ? 8 : (isLandscape ? 2 : (isSmallScreen ? 4 : 8)),
+      paddingHorizontal: 8,
+    },
+    titleWrap: {
+      width: "80%",
+      maxWidth: 600,
+      marginBottom: isWeb ? 12 : (isLandscape ? 2 : (isSmallScreen ? 6 : 12)),
+      paddingHorizontal: 8,
+    },
+    title: {
+      textAlign: "center",
+      fontSize: isWeb ? 28 : (isLandscape ? 14 : (isSmallScreen ? 18 : 28)),
+      fontWeight: "bold",
+      color: "#fff",
+      marginBottom: isWeb ? 6 : (isLandscape ? 2 : 6),
+    },
+    quote: {
+      textAlign: "center",
+      fontSize: isWeb ? 15 : (isLandscape ? 10 : (isSmallScreen ? 12 : 15)),
+      fontWeight: "bold",
+      color: "#fff",
+    },
+    resultsContainer: {
+      flexDirection: "row",
+      width: "100%",
+      paddingHorizontal: isWeb || !isSmallScreen ? 16 : 8,
+      marginTop: 8,
+      justifyContent: "space-between",
+    },
+    column: {
+      width: isWide ? "48%" : "100%",
+    },
+    columnTitle: {
+      fontSize: isWeb ? 16 : (isSmallScreen ? 11 : (isLandscape ? 12 : 16)),
+      fontWeight: "600",
+      marginBottom: isWeb ? 6 : (isLandscape ? 3 : (isSmallScreen ? 4 : 6)),
+      color: '#fff',
+    },
+    columnScroll: {
+      maxHeight: isLandscape ? Math.max(height - 130, 150) : Math.max(height - 320, 150),
+    },
+    claim: {
+      fontWeight: '700',
+      marginBottom: isWeb || !isSmallScreen ? 6 : 4,
+      fontSize: isWeb || !isSmallScreen ? 16 : 14,
+    },
+    summary: {
+      marginBottom: isWeb || !isSmallScreen ? 6 : 4,
+      fontSize: isWeb || !isSmallScreen ? 14 : 13,
+    },
+    sourceLink: {
+      color: '#fff',
+      textDecorationLine: 'underline',
+      marginBottom: 4,
+      fontSize: isWeb || !isSmallScreen ? 13 : 11,
+    },
+    inputContainer: {
+      width: '100%',
+      maxWidth: 600,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 6,
+      gap: isWeb || !isSmallScreen ? 8 : 4,
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+      borderRadius: 12,
+      paddingHorizontal: isWeb || !isSmallScreen ? 16 : 8,
+      paddingVertical: 0,
+      shadowColor: 'transparent',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
+    },
+    inputField: {
+      minWidth: isWeb || !isSmallScreen ? 250 : 150,
+      flexGrow: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#1f2937',
+      borderRadius: 12,
+      paddingHorizontal: isWeb || !isSmallScreen ? 12 : 8,
+      paddingVertical: isWeb || !isSmallScreen ? 8 : 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 3,
+      borderWidth: 1,
+      borderColor: 'rgba(124,58,237,0.3)',
+    },
+    submitButton: {
+      marginLeft: isWeb || !isSmallScreen ? 8 : 4,
+      paddingHorizontal: isWeb || !isSmallScreen ? 14 : 8,
+      paddingVertical: isWeb || !isSmallScreen ? 8 : 6,
+      borderRadius: 10,
+      flexShrink: 0,
+    },
+    submitButtonInner: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: isWeb || !isSmallScreen ? 14 : 8,
+      paddingVertical: isWeb || !isSmallScreen ? 8 : 6,
+    },
+    submitButtonText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: isWeb || !isSmallScreen ? 14 : 12,
+    },
+    card: {
+      marginBottom: isWeb ? 14 : (isSmallScreen ? 10 : (isLandscape ? 8 : 14)),
+      padding: isWeb ? 16 : (isSmallScreen ? 12 : (isLandscape ? 10 : 16)),
+      borderRadius: 12,
+      minHeight: isWeb ? 72 : (isLandscape ? 60 : 72),
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.2)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+    gradientCard: {
+      backgroundColor: 'transparent',
+    },
+    gradientText: {
+      color: '#fff',
+    },
+    counterButton: {
+      marginTop: 8,
+      alignSelf: 'flex-start',
+      backgroundColor: '#065f46',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    counterButtonText: {
+      color: '#fff',
+      fontWeight: '700',
+    },
+    challengeButton: {
+      width: '95%',
+      marginTop: isWeb || !isSmallScreen ? 8 : 6,
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+    challengeButtonInner: {
+      paddingHorizontal: isWeb || !isSmallScreen ? 10 : 8,
+      paddingVertical: isWeb || !isSmallScreen ? 6 : 4,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    challengeButtonText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: isWeb || !isSmallScreen ? 14 : 12,
+    },
+    buttonsContainer: {
+      marginTop: isWeb || !isSmallScreen ? 8 : 6,
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: isWeb || !isSmallScreen ? 8 : 6,
+    },
+    defendButton: {
+      width: '95%',
+      marginTop: isWeb || !isSmallScreen ? 0 : 6,
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+    defendButtonInner: {
+      paddingHorizontal: isWeb || !isSmallScreen ? 10 : 8,
+      paddingVertical: isWeb || !isSmallScreen ? 6 : 4,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    defendButtonText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: isWeb || !isSmallScreen ? 14 : 12,
+    },
+    replyWrap: {
+      marginLeft: isWeb || !isSmallScreen ? 14 : 10,
+      borderLeftWidth: 2,
+      paddingLeft: isWeb || !isSmallScreen ? 10 : 8,
+      marginTop: isWeb || !isSmallScreen ? 8 : 6,
+    },
+    replyWrapPro: {
+      borderLeftColor: 'rgba(233, 213, 255, 0.6)',
+    },
+    replyWrapCon: {
+      borderLeftColor: 'rgba(255, 218, 185, 0.6)',
+    },
+    replyWrapNeutral: {
+      borderLeftColor: 'rgba(255,255,255,0.3)',
+    },
+    proCard: {
+      backgroundColor: '#7C3AED',
+      borderColor: '#6D28D9',
+    },
+    proClaim: {
+      color: '#fff',
+      fontSize: 16,
+    },
+    proSummary: {
+      color: '#F3E8FF',
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    proSource: {
+      color: '#E9D5FF',
+      textDecorationLine: 'underline',
+      fontSize: 13,
+    },
+    conCard: {
+      backgroundColor: '#F97316',
+      borderColor: '#EA580C',
+    },
+    conClaim: {
+      color: '#071327',
+    },
+    conSummary: {
+      color: '#071327',
+      fontSize: 16,
+    },
+    conSource: {
+      color: '#0F172A',
+      fontSize: 14,
+      lineHeight: 20,
+      textDecorationLine: 'underline',
+    },
+    clearButton: {
+      paddingHorizontal: isWeb || !isSmallScreen ? 12 : 8,
+      paddingVertical: isWeb || !isSmallScreen ? 8 : 6,
+      borderRadius: 10,
+      flexShrink: 0,
+    },
+    clearButtonInner: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: isWeb || !isSmallScreen ? 12 : 8,
+      paddingVertical: isWeb || !isSmallScreen ? 8 : 6,
+    },
+    clearButtonText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: isWeb || !isSmallScreen ? 14 : 12,
+    },
+    debugText: {
+      fontSize: 12,
+      color: '#6B7280',
+      marginTop: 2,
+    },
+    detailWrap: {
+      marginTop: 8,
+      padding: 12,
+      borderRadius: 10,
+      backgroundColor: 'rgba(124,58,237,0.15)',
+    },
+    detailWrapGradient: {
+      marginTop: isWeb || !isSmallScreen ? 8 : 6,
+      padding: isWeb || !isSmallScreen ? 12 : 10,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    detailText: {
+      marginBottom: isWeb || !isSmallScreen ? 8 : 6,
+      fontSize: isWeb || !isSmallScreen ? 14 : 13,
+    },
+    detailSource: {
+      color: '#fff',
+      textDecorationLine: 'underline',
+      marginBottom: 6,
+      fontSize: isWeb || !isSmallScreen ? 13 : 11,
+    },
+    detailWrapPro: {
+      backgroundColor: 'rgba(124,58,237,0.12)',
+    },
+    detailTextPro: {
+      color: '#000000',
+    },
+    detailWrapCon: {
+      backgroundColor: 'rgba(249,115,22,0.12)',
+    },
+    detailTextCon: {
+      color: '#071327',
+    },
+    detailWrapNeutral: {
+      backgroundColor: 'rgba(124,58,237,0.15)',
+    },
+    detailWrapProLight: {
+      backgroundColor: 'rgba(124,58,237,0.08)',
+    },
+    detailWrapConLight: {
+      backgroundColor: 'rgba(8,145,178,0.08)',
+    },
+    detailTextNeutral: {
+      color: '#fff',
+    },
+    detailSourcePro: {
+      color: '#1D4ED8',
+    },
+    detailSourceCon: {
+      color: '#1E40AF',
+    },
+  });
+
   return (
     <LinearGradient
       colors={['#111827', '#1f2937']}
@@ -481,372 +859,3 @@ export default function HomeScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  gradientContainer: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    justifyContent: "flex-start",
-    alignItems: "center",
-  },
-  mainScroll: {
-    flex: 1,
-    width: '100%',
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  centeredLanding: {
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 0,
-  },
-  trendingSection: {
-    width: '90%',
-    maxWidth: 600,
-    marginBottom: 24,
-  },
-  trendingTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  trendingGrid: {
-    gap: 10,
-  },
-  trendingCard: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  trendingCardGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#27354a',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  trendingCardText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  input: {
-    flex: 1,
-    minWidth: 120,
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
-    fontSize: 16,
-    color: '#fff',
-  },
-  quoteWrap: {
-    width: "80%",
-    maxWidth: 600,
-    marginBottom: 16,
-    paddingHorizontal: 8,
-  },
-  titleWrap: {
-    width: "80%",
-    maxWidth: 600,
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  title: {
-    textAlign: "center",
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  quote: {
-    textAlign: "center",
-    fontSize: 15,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  resultsContainer: {
-    flexDirection: "row",
-    width: "100%",
-    paddingHorizontal: 16,
-    marginTop: 12,
-    justifyContent: "space-between",
-  },
-  column: {
-    width: "48%",
-  },
-  columnTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-    color: '#fff',
-  },
-  columnScroll: {
-    maxHeight: 300,
-  },
-  claim: {
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  summary: {
-    marginBottom: 6,
-  },
-  sourceLink: {
-    color: '#fff',
-    textDecorationLine: 'underline',
-    marginBottom: 4,
-    fontSize: 13,
-  },
-  inputContainer: {
-    width: '100%',
-    maxWidth: 600,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 0,
-    shadowColor: 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
-  inputField: {
-    minWidth: 250,
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.3)',
-  },
-  submitButton: {
-    marginLeft: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    flexShrink: 0,
-  },
-  submitButtonInner: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  card: {
-    marginBottom: 14,
-    padding: 16,
-    borderRadius: 12,
-    minHeight: 72,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  gradientCard: {
-    backgroundColor: 'transparent',
-  },
-  gradientText: {
-    color: '#fff',
-  },
-  counterButton: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    backgroundColor: '#065f46',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  counterButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  challengeButton: {
-    width: '95%',
-    marginTop: 8,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  challengeButtonInner: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  challengeButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  buttonsContainer: {
-    marginTop: 8,
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-  },
-  defendButton: {
-    width: '95%',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  defendButtonInner: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  defendButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  replyWrap: {
-    marginLeft: 14,
-    borderLeftWidth: 2,
-    paddingLeft: 10,
-    marginTop: 8,
-  },
-  replyWrapPro: {
-    borderLeftColor: 'rgba(233, 213, 255, 0.6)',
-  },
-  replyWrapCon: {
-    borderLeftColor: 'rgba(255, 218, 185, 0.6)',
-  },
-  replyWrapNeutral: {
-    borderLeftColor: 'rgba(255,255,255,0.3)',
-  },
-  proCard: {
-    backgroundColor: '#7C3AED',
-    borderColor: '#6D28D9',
-  },
-  proClaim: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  proSummary: {
-    color: '#F3E8FF',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  proSource: {
-    color: '#E9D5FF',
-    textDecorationLine: 'underline',
-    fontSize: 13,
-  },
-  conCard: {
-    backgroundColor: '#F97316',
-    borderColor: '#EA580C',
-  },
-  conClaim: {
-    color: '#071327',
-  },
-  conSummary: {
-    color: '#071327',
-    fontSize: 16,
-  },
-  conSource: {
-    color: '#0F172A',
-    fontSize: 14,
-    lineHeight: 20,
-    textDecorationLine: 'underline',
-  },
-  clearButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    flexShrink: 0,
-  },
-  clearButtonInner: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  clearButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  detailWrap: {
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(124,58,237,0.15)',
-  },
-  detailWrapGradient: {
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  detailText: {
-    marginBottom: 8,
-    fontSize: 14,
-  },
-  detailSource: {
-    color: '#fff',
-    textDecorationLine: 'underline',
-    marginBottom: 6,
-    fontSize: 13,
-  },
-  detailWrapPro: {
-    backgroundColor: 'rgba(124,58,237,0.12)',
-  },
-  detailTextPro: {
-    color: '#000000',
-  },
-  detailWrapCon: {
-    backgroundColor: 'rgba(249,115,22,0.12)',
-  },
-  detailTextCon: {
-    color: '#071327',
-  },
-  detailWrapNeutral: {
-    backgroundColor: 'rgba(124,58,237,0.15)',
-  },
-  detailWrapProLight: {
-    backgroundColor: 'rgba(124,58,237,0.08)',
-  },
-  detailWrapConLight: {
-    backgroundColor: 'rgba(8,145,178,0.08)',
-  },
-  detailTextNeutral: {
-    color: '#fff',
-  },
-  detailSourcePro: {
-    color: '#1D4ED8',
-  },
-  detailSourceCon: {
-    color: '#1E40AF',
-  },
-});
