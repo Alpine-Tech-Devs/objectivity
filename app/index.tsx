@@ -33,9 +33,49 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [hideInputOnMobile, setHideInputOnMobile] = useState(false);
   const [loadingButtonPath, setLoadingButtonPath] = useState<string | null>(null);
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
+  const [threadViewPath, setThreadViewPath] = useState<{ side: 'pro' | 'con', path: number[] } | null>(null);
+  
+  const openThreadView = (side: 'pro' | 'con', path: number[]) => {
+    setThreadViewPath({ side, path });
+  };
+  
+  const closeThreadView = () => {
+    setThreadViewPath(null);
+  };
+  
+  const navigateThreadPath = (side: 'pro' | 'con', path: number[]) => {
+    setThreadViewPath({ side, path });
+  };
+  
+  const getCollapseKey = (side: 'pro' | 'con', path: number[]) => {
+    return `${side}-${path.join('-')}`;
+  };
+  
+  const toggleCollapse = (side: 'pro' | 'con', path: number[]) => {
+    const key = getCollapseKey(side, path);
+    setCollapsedPaths(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
   
   const getPathKey = (side: 'pro' | 'con', path: number[], action: 'counter' | 'dive') => {
     return `${side}-${path.join('-')}-${action}`;
+  };
+
+  const getArgumentAtPath = (side: 'pro' | 'con', path: number[]): ArgumentItem | undefined => {
+    const arr = side === 'pro' ? proArgs : conArgs;
+    let current: ArgumentItem | undefined = arr[path[0]];
+    for (let i = 1; i < path.length; i++) {
+      current = current?.replies?.[path[i]];
+    }
+    return current;
   };
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
@@ -78,6 +118,7 @@ export default function HomeScreen() {
     if (!topic) return;
     setLoading(true);
     setError(null);
+    setThreadViewPath(null);
     try {
       const res = await fetch(`${apiBase}/api/chat`, {
         method: "POST",
@@ -112,6 +153,7 @@ export default function HomeScreen() {
     setTopicState(null);
     setError(null);
     setLoading(false);
+    setThreadViewPath(null);
   };
 
   function updateNestedInsert(arr: ArgumentItem[], path: number[], itemsToAppend: ArgumentItem[]): ArgumentItem[] {
@@ -172,26 +214,20 @@ export default function HomeScreen() {
         }),
       });
       const data = await res.json();
-      console.log('API Response:', data);
       if (!res.ok) {
         setError(data?.error || 'Request failed');
         return;
       }
 
       const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])) as ArgumentItem[];
-      console.log('Side:', side, 'Looking for:', side === 'pro' ? 'con' : 'pro');
-      console.log('Data.pro:', data.pro);
-      console.log('Data.con:', data.con);
       
       // Workaround: if we got empty results but the other side has data, use that
       let finalGenerated = generated;
       if ((!generated || generated.length === 0) && ((side === 'pro' && data.pro && data.pro.length > 0) || (side === 'con' && data.con && data.con.length > 0))) {
         finalGenerated = (side === 'pro' ? data.pro : data.con) as ArgumentItem[];
-        console.log('Using workaround - swapped data');
       }
       
       if (!finalGenerated || finalGenerated.length === 0) {
-        console.log('No generated items received');
         return;
       }
 
@@ -256,8 +292,11 @@ export default function HomeScreen() {
     }
   };
 
-  type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con' };
-  function ArgumentCard({ item, side, path = [], rootSide }: ArgumentCardProps) {
+  type ArgumentCardProps = { item: ArgumentItem; side: 'pro' | 'con'; path?: number[]; rootSide?: 'pro' | 'con'; isThreadView?: boolean };
+  
+  const MAX_DEPTH_LIMIT = 2; // Only show replies up to 2 levels deep in main view
+  
+  function ArgumentCard({ item, side, path = [], rootSide, isThreadView = false }: ArgumentCardProps) {
     const gradientColors = side === 'pro' 
       ? ["#7C3AED", "#2563EB", "#60A5FA"] as const
       : ["#0891B2", "#06B6D4", "#22D3EE"] as const;
@@ -322,6 +361,23 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </LinearGradient>
             )}
+            {path.length > 0 && (
+              <TouchableOpacity
+                onPress={() => openThreadView(side, path)}
+                style={{
+                  marginTop: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: 6,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
+                  → Thread View
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </LinearGradient>
 
@@ -347,14 +403,95 @@ export default function HomeScreen() {
 
           </LinearGradient>
         )}
-        {(item.replies || []).map((r: ArgumentItem, ri: number) => {
-          const replyKey = `reply-${side}-${path.join('-')}-${ri}`;
+        
+        {(item.replies && item.replies.length > 0) && (() => {
+          // If at depth limit in main view (not in thread view), show View Thread button instead of replies
+          if (path.length >= MAX_DEPTH_LIMIT && !isThreadView) {
+            return (
+              <TouchableOpacity
+                onPress={() => openThreadView(side, path)}
+                style={{
+                  marginTop: 12,
+                  marginLeft: 16,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  backgroundColor: 'rgba(124,58,237,0.2)',
+                  borderRadius: 6,
+                  borderLeftWidth: 3,
+                  borderLeftColor: side === 'pro' ? '#7C3AED' : '#0891B2',
+                  alignSelf: 'flex-start',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                  {item.replies.length} {item.replies.length === 1 ? 'reply' : 'replies'} → View thread
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+          
+          // Show collapsible replies when not at depth limit
+          const collapseKey = getCollapseKey(side, path);
+          const isCollapsed = collapsedPaths.has(collapseKey);
+          const replyCount = item.replies.length;
+          
           return (
-            <View key={replyKey} style={[styles.replyWrap, styles.replyWrapNeutral]}>
-              <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} rootSide={rootSide} />
+            <View>
+              <TouchableOpacity
+                onPress={() => toggleCollapse(side, path)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginTop: 12,
+                  marginLeft: 16,
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: 6,
+                  borderLeftWidth: 3,
+                  borderLeftColor: side === 'pro' ? '#7C3AED' : '#0891B2',
+                  alignSelf: 'flex-start',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', marginRight: 6 }}>
+                  {isCollapsed ? '▶' : '▼'}
+                </Text>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                  {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
+                </Text>
+              </TouchableOpacity>
+              
+              {!isCollapsed && (
+                <View style={{ marginTop: 8, borderLeftWidth: 2, borderLeftColor: 'rgba(255, 255, 255, 0.1)', marginLeft: 8 }}>
+                  {item.replies.map((r: ArgumentItem, ri: number) => {
+                    const replyKey = `reply-${side}-${path.join('-')}-${ri}`;
+                    const nextSide = side === 'pro' ? 'con' : 'pro';
+                    const isDifferentSide = nextSide !== side;
+                    
+                    return (
+                      <View key={replyKey} style={{ marginLeft: 16, marginTop: 8, position: 'relative' }}>
+                        {/* Timeline dot indicator */}
+                        <View
+                          style={{
+                            position: 'absolute',
+                            left: -26,
+                            top: 24,
+                            width: 10,
+                            height: 10,
+                            borderRadius: 5,
+                            backgroundColor: nextSide === 'pro' ? '#7C3AED' : '#0891B2',
+                            borderWidth: 2,
+                            borderColor: '#111827',
+                          }}
+                        />
+                        <ArgumentCard item={r} side={nextSide} path={path.concat(ri)} rootSide={rootSide} isThreadView={isThreadView} />
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           );
-        })}
+        })()}
       </View>
     );
   }
@@ -733,6 +870,49 @@ export default function HomeScreen() {
     detailSourceCon: {
       color: '#1E40AF',
     },
+    threadViewContainer: {
+      flex: 1,
+      width: '100%',
+      backgroundColor: '#111827',
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255,255,255,0.1)',
+    },
+    threadViewHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#1f2937',
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255,255,255,0.1)',
+      paddingVertical: 8,
+      paddingHorizontal: isWeb || !isSmallScreen ? 16 : 12,
+    },
+    threadViewBackButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 6,
+      backgroundColor: 'rgba(124,58,237,0.3)',
+    },
+    threadViewBackText: {
+      color: '#fff',
+      fontWeight: '600',
+      fontSize: isWeb || !isSmallScreen ? 13 : 11,
+    },
+    threadViewScroll: {
+      flex: 1,
+      width: '100%',
+    },
+    threadViewContent: {
+      width: '100%',
+      alignItems: 'center',
+      paddingHorizontal: isWeb || !isSmallScreen ? 16 : 12,
+      paddingVertical: isWeb || !isSmallScreen ? 12 : 8,
+    },
+    errorText: {
+      color: '#ff6b6b',
+      fontSize: 14,
+      marginTop: 12,
+      textAlign: 'center',
+    },
   });
 
   return (
@@ -894,7 +1074,7 @@ export default function HomeScreen() {
       )}
       {error ? <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text> : null}
 
-      {(proArgs.length > 0 || conArgs.length > 0) && (
+      {(proArgs.length > 0 || conArgs.length > 0) && threadViewPath === null && (
         <View style={[styles.resultsContainer, { flexDirection: isWide ? 'row' : 'column' }]}>
           <View style={[styles.column, { width: isWide ? '48%' : '100%' }]}>
             <Text style={styles.columnTitle}>Pro</Text>
@@ -923,6 +1103,38 @@ export default function HomeScreen() {
                 
             </ScrollView>
           </View>
+        </View>
+      )}
+
+      {threadViewPath && (
+        <View style={styles.threadViewContainer}>
+          <View style={styles.threadViewHeader}>
+            <TouchableOpacity onPress={closeThreadView} style={styles.threadViewBackButton}>
+              <Text style={styles.threadViewBackText}>← Back</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            style={[styles.threadViewScroll, isWeb ? { maxHeight: height - 280 } : undefined]}
+            contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
+          >
+            {(() => {
+              const threadArg = getArgumentAtPath(threadViewPath.side, threadViewPath.path);
+              return threadArg ? (
+                <View style={styles.threadViewContent}>
+                  <ArgumentCard 
+                    item={threadArg} 
+                    side={threadViewPath.side} 
+                    path={threadViewPath.path}
+                    rootSide={threadViewPath.side}
+                    isThreadView={true}
+                  />
+                </View>
+              ) : (
+                <Text style={styles.errorText}>Thread not found</Text>
+              );
+            })()}
+          </ScrollView>
         </View>
       )}
         </ScrollView>
