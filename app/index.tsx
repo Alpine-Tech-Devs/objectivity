@@ -763,6 +763,11 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </LinearGradient>
         )}
+        {loading && (
+          <View style={{ paddingLeft: 12, justifyContent: 'center' }}>
+            <ActivityIndicator size="small" />
+          </View>
+        )}
       </View>
       {proArgs.length === 0 && conArgs.length === 0 && (
         <View style={styles.trendingSection}>
@@ -814,11 +819,6 @@ export default function HomeScreen() {
       )}
       {false && (
         <View style={{ width: '80%', maxWidth: 600, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        </View>
-      )}
-      {loading && (
-        <View style={{ paddingVertical: 12 }}>
-          <ActivityIndicator size="small" />
         </View>
       )}
       {error ? <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text> : null}
