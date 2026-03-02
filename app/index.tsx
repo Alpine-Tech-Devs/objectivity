@@ -172,20 +172,46 @@ export default function HomeScreen() {
         }),
       });
       const data = await res.json();
+      console.log('API Response:', data);
       if (!res.ok) {
         setError(data?.error || 'Request failed');
         return;
       }
 
       const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])) as ArgumentItem[];
-      if (!generated || generated.length === 0) return;
+      console.log('Side:', side, 'Looking for:', side === 'pro' ? 'con' : 'pro');
+      console.log('Data.pro:', data.pro);
+      console.log('Data.con:', data.con);
+      
+      // Workaround: if we got empty results but the other side has data, use that
+      let finalGenerated = generated;
+      if ((!generated || generated.length === 0) && ((side === 'pro' && data.pro && data.pro.length > 0) || (side === 'con' && data.con && data.con.length > 0))) {
+        finalGenerated = (side === 'pro' ? data.pro : data.con) as ArgumentItem[];
+        console.log('Using workaround - swapped data');
+      }
+      
+      if (!finalGenerated || finalGenerated.length === 0) {
+        console.log('No generated items received');
+        return;
+      }
+
+      console.log('Generated items:', finalGenerated);
+      console.log('Path:', path, 'Side:', side);
 
       // Insert generated replies into the array that owns the targeted item (rootSide)
       const targetRoot = rootSide || side;
       if (targetRoot === 'pro') {
-        setProArgs(prev => updateNestedInsert(prev, path, generated));
+        setProArgs(prev => {
+          const updated = updateNestedInsert(prev, path, finalGenerated);
+          console.log('Updated Pro args:', updated);
+          return updated;
+        });
       } else {
-        setConArgs(prev => updateNestedInsert(prev, path, generated));
+        setConArgs(prev => {
+          const updated = updateNestedInsert(prev, path, finalGenerated);
+          console.log('Updated Con args:', updated);
+          return updated;
+        });
       }
     } catch (err) {
       console.error('Counter request failed:', err);
@@ -321,12 +347,14 @@ export default function HomeScreen() {
 
           </LinearGradient>
         )}
-
-        {(item.replies || []).map((r: ArgumentItem, ri: number) => (
-          <View key={`reply-${ri}`} style={[styles.replyWrap, styles.replyWrapNeutral]}>
-            <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} rootSide={rootSide} />
-          </View>
-        ))}
+        {(item.replies || []).map((r: ArgumentItem, ri: number) => {
+          const replyKey = `reply-${side}-${path.join('-')}-${ri}`;
+          return (
+            <View key={replyKey} style={[styles.replyWrap, styles.replyWrapNeutral]}>
+              <ArgumentCard item={r} side={side === 'pro' ? 'con' : 'pro'} path={path.concat(ri)} rootSide={rootSide} />
+            </View>
+          );
+        })}
       </View>
     );
   }
