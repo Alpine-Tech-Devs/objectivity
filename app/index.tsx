@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -127,7 +127,6 @@ export default function HomeScreen() {
       });
 
       const data = await res.json();
-      console.log('api/chat response', data);
       if (!res.ok) {
         setError(data?.error || 'Request failed');
         setProArgs([]);
@@ -226,9 +225,6 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log('Generated items:', generated);
-      console.log('Path:', path, 'Side:', side, 'RootSide:', rootSide);
-
       // Auto-expand the replies to show the new items
       const collapseKey = getCollapseKey(side, path);
       setCollapsedPaths(prev => {
@@ -241,17 +237,9 @@ export default function HomeScreen() {
       // Nested arguments are stored in the array they belong to (determined by rootSide)
       const targetRoot = rootSide || side;
       if (targetRoot === 'pro') {
-        setProArgs(prev => {
-          const updated = updateNestedInsert(prev, path, generated);
-          console.log('Updated Pro args:', updated);
-          return updated;
-        });
+        setProArgs(prev => updateNestedInsert(prev, path, generated));
       } else {
-        setConArgs(prev => {
-          const updated = updateNestedInsert(prev, path, generated);
-          console.log('Updated Con args:', updated);
-          return updated;
-        });
+        setConArgs(prev => updateNestedInsert(prev, path, generated));
       }
     } catch (err) {
       console.error('Counter request failed:', err);
@@ -300,7 +288,7 @@ export default function HomeScreen() {
   
   const MAX_DEPTH_LIMIT = 10; // Only show replies up to 10 levels deep in main view
   
-  function ArgumentCard({ item, side, path = [], rootSide, isThreadView = false, applyIndentation = true }: ArgumentCardProps) {
+  const ArgumentCard = React.memo(function ArgumentCard({ item, side, path = [], rootSide, isThreadView = false, applyIndentation = true }: ArgumentCardProps) {
     const gradientColors = side === 'pro' 
       ? ["#7C3AED", "#2563EB", "#60A5FA"] as const
       : ["#0891B2", "#06B6D4", "#22D3EE"] as const;
@@ -500,9 +488,9 @@ export default function HomeScreen() {
         })()}
       </View>
     );
-  }
+  });
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     gradientContainer: {
       flex: 1,
     },
@@ -919,7 +907,7 @@ export default function HomeScreen() {
       marginTop: 12,
       textAlign: 'center',
     },
-  });
+  }), [isWide, isSmallScreen, isLandscape, isWeb, height]);
 
   return (
     <LinearGradient
