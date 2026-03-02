@@ -32,6 +32,11 @@ export default function HomeScreen() {
   const [topicState, setTopicState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hideInputOnMobile, setHideInputOnMobile] = useState(false);
+  const [loadingButtonPath, setLoadingButtonPath] = useState<string | null>(null);
+  
+  const getPathKey = (side: 'pro' | 'con', path: number[], action: 'counter' | 'dive') => {
+    return `${side}-${path.join('-')}-${action}`;
+  };
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
   const isWeb = Platform.OS === "web";
@@ -153,7 +158,7 @@ export default function HomeScreen() {
       setError('No active topic. Submit a topic first.');
       return;
     }
-    setLoading(true);
+    setLoadingButtonPath(getPathKey(side, path, 'counter'));
     setError(null);
     try {
       const res = await fetch(`${apiBase}/api/chat`, {
@@ -186,7 +191,7 @@ export default function HomeScreen() {
       console.error('Counter request failed:', err);
       setError(String(err));
     } finally {
-      setLoading(false);
+      setLoadingButtonPath(null);
     }
   };
 
@@ -195,7 +200,7 @@ export default function HomeScreen() {
       setError('No active topic. Submit a topic first.');
       return;
     }
-    setLoading(true);
+    setLoadingButtonPath(getPathKey(side, path, 'dive'));
     setError(null);
     try {
       const res = await fetch(`${apiBase}/api/chat`, {
@@ -221,7 +226,7 @@ export default function HomeScreen() {
       console.error('Dive request failed:', err);
       setError(String(err));
     } finally {
-      setLoading(false);
+      setLoadingButtonPath(null);
     }
   };
 
@@ -258,11 +263,12 @@ export default function HomeScreen() {
               style={styles.challengeButton}
             >
               <TouchableOpacity
-                style={styles.challengeButtonInner}
+                style={[styles.challengeButtonInner, loadingButtonPath === getPathKey(side, path, 'counter') && { opacity: 0.5 }]}
                 onPress={() => {
                   const claim = item.claim || '';
                   handleCounter(side, path, claim, rootSide || side);
                 }}
+                disabled={loadingButtonPath === getPathKey(side, path, 'counter')}
                 accessibilityRole="button"
               >
                 <Text style={styles.challengeButtonText}>Challenge this point</Text>
@@ -278,11 +284,12 @@ export default function HomeScreen() {
                 style={styles.defendButton}
               >
                 <TouchableOpacity
-                  style={styles.defendButtonInner}
+                  style={[styles.defendButtonInner, loadingButtonPath === getPathKey(side, path, 'dive') && { opacity: 0.5 }]}
                   onPress={() => {
                     const claim = item.claim || '';
                     handleDive(side, path, claim, rootSide || side);
                   }}
+                  disabled={loadingButtonPath === getPathKey(side, path, 'dive')}
                   accessibilityRole="button"
                 >
                   <Text style={styles.defendButtonText}>Defend this point</Text>
@@ -771,6 +778,7 @@ export default function HomeScreen() {
             returnKeyType="done"
             autoFocus
             placeholderTextColor="#9CA3AF"
+            editable={!loading}
           />
           <LinearGradient
             colors={['#7C3AED', '#2563EB', '#0891B2', '#06B6D4', '#22D3EE']}
@@ -778,7 +786,7 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.submitButton}
           >
-            <TouchableOpacity style={styles.submitButtonInner} onPress={handleSubmit} accessibilityRole="button">
+            <TouchableOpacity style={[styles.submitButtonInner, loading && { opacity: 0.5 }]} onPress={!loading ? handleSubmit : undefined} disabled={loading} accessibilityRole="button">
               <Text style={styles.submitButtonText}>Start Debate</Text>
             </TouchableOpacity>
           </LinearGradient>
@@ -790,7 +798,7 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.clearButton}
           >
-            <TouchableOpacity style={styles.clearButtonInner} onPress={clearDebate} accessibilityRole="button">
+            <TouchableOpacity style={[styles.clearButtonInner, loading && { opacity: 0.5 }]} onPress={!loading ? clearDebate : undefined} disabled={loading} accessibilityRole="button">
               <Text style={styles.clearButtonText}>Clear Debate</Text>
             </TouchableOpacity>
           </LinearGradient>
@@ -810,8 +818,9 @@ export default function HomeScreen() {
             {['Will AI replace lawyers?', 'My employer should let me work remotely', 'Should billionaires exist?'].map((topic, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.trendingCard}
-                onPress={async () => {
+                style={[styles.trendingCard, loading && { opacity: 0.5 }]}
+                disabled={loading}
+                onPress={!loading ? async () => {
                   setValue(topic);
                   setLoading(true);
                   setError(null);
@@ -836,7 +845,7 @@ export default function HomeScreen() {
                   } finally {
                     setLoading(false);
                   }
-                }}
+                } : undefined}
               >
                 <LinearGradient
                   colors={["#27354a", "#1f2937"]}
