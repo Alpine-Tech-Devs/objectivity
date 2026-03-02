@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const [conArgs, setConArgs] = useState<ArgumentItem[]>([]);
   const [topicState, setTopicState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hideInputOnMobile, setHideInputOnMobile] = useState(false);
   const { width, height } = useWindowDimensions();
   const isWide = width >= 600;
   const isWeb = Platform.OS === "web";
@@ -710,6 +711,35 @@ export default function HomeScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        {(proArgs.length > 0 || conArgs.length > 0) && !isWeb && (
+          <LinearGradient
+            colors={['#7C3AED', '#2563EB', '#0891B2', '#06B6D4', '#22D3EE']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              zIndex: 1000,
+              borderRadius: 8,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setHideInputOnMobile(!hideInputOnMobile)}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderRadius: 8,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>
+                {hideInputOnMobile ? 'Show' : 'Hide'}
+              </Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        )}
         <ScrollView 
           style={styles.mainScroll}
           contentContainerStyle={
@@ -729,6 +759,8 @@ export default function HomeScreen() {
               {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
           </View>
           <View style={styles.inputContainer}>
+          {!hideInputOnMobile && (
+            <>
           <View style={styles.inputField}>
           <TextInput
             value={value}
@@ -763,6 +795,8 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </LinearGradient>
         )}
+            </>
+          )}
         {loading && (
           <View style={{ paddingLeft: 12, justifyContent: 'center' }}>
             <ActivityIndicator size="small" />
