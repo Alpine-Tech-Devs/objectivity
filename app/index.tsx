@@ -361,7 +361,7 @@ export default function HomeScreen() {
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
                   borderRadius: 6,
                   alignItems: 'center',
-                  width: (isLandscape && !isWeb) ? '30%' : '95%',
+                  width: (isLandscape && (!isWeb || !isWide)) ? '30%' : '95%',
                   flexShrink: 0,
                 }}
               >
@@ -701,7 +701,7 @@ export default function HomeScreen() {
       fontWeight: '700',
     },
     challengeButton: {
-      width: (isLandscape && !isWeb) ? '45%' : '95%',
+      width: (isLandscape && (!isWeb || !isWide)) ? '45%' : '95%',
       marginTop: isWeb || !isSmallScreen ? 8 : 6,
       borderRadius: 8,
       overflow: 'hidden',
@@ -719,13 +719,13 @@ export default function HomeScreen() {
     },
     buttonsContainer: {
       marginTop: isWeb || !isSmallScreen ? 8 : 6,
-      flexDirection: (isLandscape && !isWeb) ? 'row' : 'column',
+      flexDirection: (isLandscape && (!isWeb || !isWide)) ? 'row' : 'column',
       alignItems: 'center',
       gap: isWeb || !isSmallScreen ? 8 : 6,
-      flexWrap: (isLandscape && !isWeb) ? 'wrap' : 'nowrap',
+      flexWrap: (isLandscape && (!isWeb || !isWide)) ? 'wrap' : 'nowrap',
     },
     defendButton: {
-      width: (isLandscape && !isWeb) ? '45%' : '95%',
+      width: (isLandscape && (!isWeb || !isWide)) ? '45%' : '95%',
       marginTop: isWeb || !isSmallScreen ? 0 : 6,
       borderRadius: 8,
       overflow: 'hidden',
@@ -1071,7 +1071,7 @@ export default function HomeScreen() {
 
       {(proArgs.length > 0 || conArgs.length > 0) && threadViewPath === null && (
         <>
-          {isLandscape && !isWeb && (
+          {isLandscape && (!isWeb || !isWide) && (
             <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8, zIndex: 100 }}>
               <LinearGradient
                 colors={["#7C3AED", "#2563EB", "#60A5FA"]}
@@ -1101,9 +1101,9 @@ export default function HomeScreen() {
               </LinearGradient>
             </View>
           )}
-          <View style={[styles.resultsContainer, { flexDirection: (isWide && !(isLandscape && !isWeb)) ? 'row' : 'column' }]}>
-            {(!isLandscape || isWeb || landscapeView === 'pro') && (
-              <View style={[styles.column, { width: (isWide && !(isLandscape && !isWeb)) ? '48%' : '100%' }]}>
+          <View style={[styles.resultsContainer, { flexDirection: (isWide && !(isLandscape && (!isWeb || !isWide))) ? 'row' : 'column' }]}>
+            {((!isLandscape || (isWeb && isWide) || landscapeView === 'pro')) && (
+              <View style={[styles.column, { width: (isWide && !(isLandscape && (!isWeb || !isWide))) ? '48%' : '100%' }]}>
                 <Text style={styles.columnTitle}>Pro</Text>
                 <ScrollView
                   style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : isLandscape ? { maxHeight: height - 140 } : undefined]}
@@ -1120,8 +1120,8 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {(!isLandscape || isWeb || landscapeView === 'con') && (
-              <View style={[styles.column, { width: (isWide && !(isLandscape && !isWeb)) ? '48%' : '100%', marginTop: (isWide && !(isLandscape && !isWeb)) ? 0 : 12 }]}>
+            {((!isLandscape || (isWeb && isWide) || landscapeView === 'con')) && (
+              <View style={[styles.column, { width: (isWide && !(isLandscape && (!isWeb || !isWide))) ? '48%' : '100%', marginTop: (isWide && !(isLandscape && (!isWeb || !isWide))) ? 0 : 12 }]}>
                 <Text style={styles.columnTitle}>Con</Text>
                 <ScrollView
                   style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : isLandscape ? { maxHeight: height - 140 } : undefined]}
