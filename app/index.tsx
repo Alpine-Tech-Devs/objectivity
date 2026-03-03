@@ -35,6 +35,7 @@ export default function HomeScreen() {
   const [loadingButtonPath, setLoadingButtonPath] = useState<string | null>(null);
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
   const [threadViewPath, setThreadViewPath] = useState<{ side: 'pro' | 'con', path: number[], rootSide: 'pro' | 'con' } | null>(null);
+  const [landscapeView, setLandscapeView] = useState<'pro' | 'con'>('pro');
   
   const openThreadView = (side: 'pro' | 'con', path: number[], rootSide?: 'pro' | 'con') => {
     setThreadViewPath({ side, path, rootSide: rootSide || side });
@@ -138,7 +139,6 @@ export default function HomeScreen() {
         // keep the input value so the user can edit or submit again
       }
     } catch (err) {
-      console.error("Request failed:", err);
       setError(String(err));
     } finally {
       setLoading(false);
@@ -242,7 +242,6 @@ export default function HomeScreen() {
         setConArgs(prev => updateNestedInsert(prev, path, generated));
       }
     } catch (err) {
-      console.error('Counter request failed:', err);
       setError(String(err));
     } finally {
       setLoadingButtonPath(null);
@@ -277,7 +276,6 @@ export default function HomeScreen() {
         setConArgs(prev => updateNestedSetDetail(prev, path, detail));
       }
     } catch (err) {
-      console.error('Dive request failed:', err);
       setError(String(err));
     } finally {
       setLoadingButtonPath(null);
@@ -363,6 +361,8 @@ export default function HomeScreen() {
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
                   borderRadius: 6,
                   alignItems: 'center',
+                  width: (isLandscape && !isWeb) ? '30%' : '95%',
+                  flexShrink: 0,
                 }}
               >
                 <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
@@ -701,7 +701,7 @@ export default function HomeScreen() {
       fontWeight: '700',
     },
     challengeButton: {
-      width: '95%',
+      width: (isLandscape && !isWeb) ? '45%' : '95%',
       marginTop: isWeb || !isSmallScreen ? 8 : 6,
       borderRadius: 8,
       overflow: 'hidden',
@@ -719,12 +719,13 @@ export default function HomeScreen() {
     },
     buttonsContainer: {
       marginTop: isWeb || !isSmallScreen ? 8 : 6,
-      flexDirection: 'column',
+      flexDirection: (isLandscape && !isWeb) ? 'row' : 'column',
       alignItems: 'center',
       gap: isWeb || !isSmallScreen ? 8 : 6,
+      flexWrap: (isLandscape && !isWeb) ? 'wrap' : 'nowrap',
     },
     defendButton: {
-      width: '95%',
+      width: (isLandscape && !isWeb) ? '45%' : '95%',
       marginTop: isWeb || !isSmallScreen ? 0 : 6,
       borderRadius: 8,
       overflow: 'hidden',
@@ -920,7 +921,7 @@ export default function HomeScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {(proArgs.length > 0 || conArgs.length > 0) && (!isWeb || !isWide) && (
+        {(proArgs.length > 0 || conArgs.length > 0) && (!isWeb || !isWide || isLandscape) && (
           <LinearGradient
             colors={['#7C3AED', '#2563EB', '#0891B2', '#06B6D4', '#22D3EE']}
             start={{ x: 0, y: 0 }}
@@ -1069,35 +1070,75 @@ export default function HomeScreen() {
       {error ? <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text> : null}
 
       {(proArgs.length > 0 || conArgs.length > 0) && threadViewPath === null && (
-        <View style={[styles.resultsContainer, { flexDirection: isWide ? 'row' : 'column' }]}>
-          <View style={[styles.column, { width: isWide ? '48%' : '100%' }]}>
-            <Text style={styles.columnTitle}>Pro</Text>
-            <ScrollView
-              style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : undefined]}
-              contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
-            >
-                  {proArgs.map((a: ArgumentItem, i: number) => (
-                    <ArgumentCard key={`pro-${i}`} item={a} side="pro" path={[i]} rootSide="pro" />
-                  ))}
+        <>
+          {isLandscape && !isWeb && (
+            <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8, zIndex: 100 }}>
+              <LinearGradient
+                colors={["#7C3AED", "#2563EB", "#60A5FA"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}
+              >
+                <TouchableOpacity
+                  onPress={() => setLandscapeView('pro')}
+                  style={{ paddingVertical: 8, alignItems: 'center', opacity: landscapeView === 'pro' ? 1 : 0.6 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Pro</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+              <LinearGradient
+                colors={["#0891B2", "#06B6D4", "#22D3EE"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}
+              >
+                <TouchableOpacity
+                  onPress={() => setLandscapeView('con')}
+                  style={{ paddingVertical: 8, alignItems: 'center', opacity: landscapeView === 'con' ? 1 : 0.6 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Con</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            </View>
+          )}
+          <View style={[styles.resultsContainer, { flexDirection: (isWide && !(isLandscape && !isWeb)) ? 'row' : 'column' }]}>
+            {(!isLandscape || isWeb || landscapeView === 'pro') && (
+              <View style={[styles.column, { width: (isWide && !(isLandscape && !isWeb)) ? '48%' : '100%' }]}>
+                <Text style={styles.columnTitle}>Pro</Text>
+                <ScrollView
+                  style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : isLandscape ? { maxHeight: height - 140 } : undefined]}
+                  contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
+                  nestedScrollEnabled={true}
+                  scrollEventThrottle={16}
+                >
+                      {proArgs.map((a: ArgumentItem, i: number) => (
+                        <ArgumentCard key={`pro-${i}`} item={a} side="pro" path={[i]} rootSide="pro" />
+                      ))}
 
-                  
-            </ScrollView>
+                      
+                </ScrollView>
+              </View>
+            )}
+
+            {(!isLandscape || isWeb || landscapeView === 'con') && (
+              <View style={[styles.column, { width: (isWide && !(isLandscape && !isWeb)) ? '48%' : '100%', marginTop: (isWide && !(isLandscape && !isWeb)) ? 0 : 12 }]}>
+                <Text style={styles.columnTitle}>Con</Text>
+                <ScrollView
+                  style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : isLandscape ? { maxHeight: height - 140 } : undefined]}
+                  contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
+                  nestedScrollEnabled={true}
+                  scrollEventThrottle={16}
+                >
+                    {conArgs.map((a: ArgumentItem, i: number) => (
+                      <ArgumentCard key={`con-${i}`} item={a} side="con" path={[i]} rootSide="con" />
+                    ))}
+
+                    
+                </ScrollView>
+              </View>
+            )}
           </View>
-
-          <View style={[styles.column, { width: isWide ? '48%' : '100%', marginTop: isWide ? 0 : 12 }]}>
-            <Text style={styles.columnTitle}>Con</Text>
-            <ScrollView
-              style={[styles.columnScroll, isWeb ? { maxHeight: height - 220 } : undefined]}
-              contentContainerStyle={isWeb ? { paddingBottom: 88 } : undefined}
-            >
-                {conArgs.map((a: ArgumentItem, i: number) => (
-                  <ArgumentCard key={`con-${i}`} item={a} side="con" path={[i]} rootSide="con" />
-                ))}
-
-                
-            </ScrollView>
-          </View>
-        </View>
+        </>
       )}
 
       {threadViewPath && (
