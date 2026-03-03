@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -920,7 +920,7 @@ export default function HomeScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {(proArgs.length > 0 || conArgs.length > 0) && !isWeb && (
+        {(proArgs.length > 0 || conArgs.length > 0) && (!isWeb || !isWide) && (
           <LinearGradient
             colors={['#7C3AED', '#2563EB', '#0891B2', '#06B6D4', '#22D3EE']}
             start={{ x: 0, y: 0 }}
@@ -944,7 +944,7 @@ export default function HomeScreen() {
               }}
             >
               <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>
-                {hideInputOnMobile ? 'Show' : 'Hide'}
+                {hideInputOnMobile ? 'Show Input' : 'Hide Input'}
               </Text>
             </TouchableOpacity>
           </LinearGradient>
