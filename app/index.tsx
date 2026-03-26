@@ -207,7 +207,7 @@ export default function HomeScreen() {
         return;
       }
 
-      const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])) as ArgumentItem[];
+      const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])).slice(0, 1) as ArgumentItem[];
       
       if (!generated || generated.length === 0) {
         setError('No counterarguments generated. Please try again.');
