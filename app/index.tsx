@@ -902,7 +902,7 @@ export default function HomeScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          {(isWide || !topicState) && (
+          {(width >= 1024 || !topicState) && (
             <View style={styles.titleWrap}>
               <TouchableOpacity onPress={() => {
                 setValue('');
@@ -916,7 +916,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           )}
-          {(isWide || !topicState) && (
+          {(width >= 1024 || !topicState) && (
             <View style={styles.quoteWrap}>
               <Text style={styles.quote}>
                 Hear both sides. Decide for yourself.
