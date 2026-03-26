@@ -902,24 +902,28 @@ export default function HomeScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.titleWrap}>
-            <TouchableOpacity onPress={() => {
-              setValue('');
-              setProArgs([]);
-              setConArgs([]);
-              setTopicState(null);
-              setError(null);
-              setThreadViewPath(null);
-            }}>
-              <Text style={styles.title}>Objectivity</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.quoteWrap}>
-            <Text style={styles.quote}>
-              Hear both sides. Decide for yourself.
-            </Text>
-              {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
-          </View>
+          {(isWide || !topicState) && (
+            <View style={styles.titleWrap}>
+              <TouchableOpacity onPress={() => {
+                setValue('');
+                setProArgs([]);
+                setConArgs([]);
+                setTopicState(null);
+                setError(null);
+                setThreadViewPath(null);
+              }}>
+                <Text style={styles.title}>Objectivity</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {(isWide || !topicState) && (
+            <View style={styles.quoteWrap}>
+              <Text style={styles.quote}>
+                Hear both sides. Decide for yourself.
+              </Text>
+                {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
+            </View>
+          )}
           <View style={styles.inputContainer}>
           <View style={styles.inputField}>
           <TextInput
