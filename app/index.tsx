@@ -31,7 +31,6 @@ export default function HomeScreen() {
   const [conArgs, setConArgs] = useState<ArgumentItem[]>([]);
   const [topicState, setTopicState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hideInputOnMobile, setHideInputOnMobile] = useState(false);
   const [loadingButtonPath, setLoadingButtonPath] = useState<string | null>(null);
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
   const [threadViewPath, setThreadViewPath] = useState<{ side: 'pro' | 'con', path: number[], rootSide: 'pro' | 'con' } | null>(null);
@@ -145,16 +144,6 @@ export default function HomeScreen() {
     }
   };
 
-  const clearDebate = () => {
-    setValue('');
-    setProArgs([]);
-    setConArgs([]);
-    setTopicState(null);
-    setError(null);
-    setLoading(false);
-    setThreadViewPath(null);
-  };
-
   function updateNestedInsert(arr: ArgumentItem[], path: number[], itemsToAppend: ArgumentItem[]): ArgumentItem[] {
     if (!path || path.length === 0) return arr;
     const idx = path[0];
@@ -218,7 +207,7 @@ export default function HomeScreen() {
         return;
       }
 
-      const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])) as ArgumentItem[];
+      const generated = (side === 'pro' ? (data.con || []) : (data.pro || [])).slice(0, 1) as ArgumentItem[];
       
       if (!generated || generated.length === 0) {
         setError('No counterarguments generated. Please try again.');
@@ -791,23 +780,6 @@ export default function HomeScreen() {
       lineHeight: 20,
       textDecorationLine: 'underline',
     },
-    clearButton: {
-      paddingHorizontal: isWeb || !isSmallScreen ? 12 : 8,
-      paddingVertical: isWeb || !isSmallScreen ? 8 : 6,
-      borderRadius: 10,
-      flexShrink: 0,
-    },
-    clearButtonInner: {
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: isWeb || !isSmallScreen ? 12 : 8,
-      paddingVertical: isWeb || !isSmallScreen ? 8 : 6,
-    },
-    clearButtonText: {
-      color: '#fff',
-      fontWeight: '700',
-      fontSize: isWeb || !isSmallScreen ? 14 : 12,
-    },
     debugText: {
       fontSize: 12,
       color: '#6B7280',
@@ -921,35 +893,6 @@ export default function HomeScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {(proArgs.length > 0 || conArgs.length > 0) && (!isWeb || !isWide || isLandscape) && (
-          <LinearGradient
-            colors={['#7C3AED', '#2563EB', '#0891B2', '#06B6D4', '#22D3EE']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              zIndex: 1000,
-              borderRadius: 8,
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => setHideInputOnMobile(!hideInputOnMobile)}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderRadius: 8,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>
-                {hideInputOnMobile ? 'Show Input' : 'Hide Input'}
-              </Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        )}
         <ScrollView 
           style={styles.mainScroll}
           contentContainerStyle={
@@ -959,18 +902,29 @@ export default function HomeScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.titleWrap}>
-            <Text style={styles.title}>The Objectivity</Text>
-          </View>
-          <View style={styles.quoteWrap}>
-            <Text style={styles.quote}>
-              Hear both sides. Decide for yourself.
-            </Text>
-              {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
-          </View>
+          {(isWide || !topicState) && (
+            <View style={styles.titleWrap}>
+              <TouchableOpacity onPress={() => {
+                setValue('');
+                setProArgs([]);
+                setConArgs([]);
+                setTopicState(null);
+                setError(null);
+                setThreadViewPath(null);
+              }}>
+                <Text style={styles.title}>Objectivity</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {(isWide || !topicState) && (
+            <View style={styles.quoteWrap}>
+              <Text style={styles.quote}>
+                Hear both sides. Decide for yourself.
+              </Text>
+                {/* "There is no such thing as objectivity. The best you can do is hear both sides argued well, and decide for yourself." */}
+            </View>
+          )}
           <View style={styles.inputContainer}>
-          {!hideInputOnMobile && (
-            <>
           <View style={styles.inputField}>
           <TextInput
             value={value}
@@ -994,20 +948,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </LinearGradient>
         </View>
-        {(value.trim() !== '' || proArgs.length > 0 || conArgs.length > 0) && (
-          <LinearGradient
-            colors={['#6b7280', '#4b5563']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.clearButton}
-          >
-            <TouchableOpacity style={[styles.clearButtonInner, loading && { opacity: 0.5 }]} onPress={!loading ? clearDebate : undefined} disabled={loading} accessibilityRole="button">
-              <Text style={styles.clearButtonText}>Clear Debate</Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        )}
-            </>
-          )}
         {loading && (
           <View style={{ paddingLeft: 12, justifyContent: 'center' }}>
             <ActivityIndicator size="small" />
@@ -1018,7 +958,7 @@ export default function HomeScreen() {
         <View style={styles.trendingSection}>
           <Text style={styles.trendingTitle}>Trending Debates</Text>
           <View style={styles.trendingGrid}>
-            {['Will AI replace lawyers?', 'My employer should let me work remotely', 'Should billionaires exist?'].map((topic, index) => (
+            {['Is the Iran war good?', 'Are AI stocks in a bubble?', 'Will AI replace lawyers?', 'MI should be allowed to work remotely', 'Should billionaires exist?'].map((topic, index) => (
               <TouchableOpacity
                 key={index}
                 style={[styles.trendingCard, loading && { opacity: 0.5 }]}
