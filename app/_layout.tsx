@@ -6,7 +6,7 @@ function Footer() {
   const year = new Date().getFullYear();
   return (
     <View style={styles.footer}>
-      <Text style={styles.text}>© {year} The Objectivity - All Rights Reserved</Text>
+      <Text style={styles.text}>© {year} Objectivity - All Rights Reserved</Text>
     </View>
   );
 }
