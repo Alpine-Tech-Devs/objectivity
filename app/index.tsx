@@ -958,7 +958,7 @@ export default function HomeScreen() {
         <View style={styles.trendingSection}>
           <Text style={styles.trendingTitle}>Trending Debates</Text>
           <View style={styles.trendingGrid}>
-            {['Is the Iran war good?', 'Are AI stocks in a bubble?', 'Will AI replace lawyers?', 'MI should be allowed to work remotely', 'Should billionaires exist?'].map((topic, index) => (
+            {['Is the Iran war good?', 'Are AI stocks in a bubble?', 'Will AI replace lawyers?', 'I should be allowed to work remotely', 'Should billionaires exist?'].map((topic, index) => (
               <TouchableOpacity
                 key={index}
                 style={[styles.trendingCard, loading && { opacity: 0.5 }]}
